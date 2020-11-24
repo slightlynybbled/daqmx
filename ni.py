@@ -68,6 +68,13 @@ class NIDAQmx:
             return current_value.lower()
 
     def __validate_line(self, line_string: str):
+        """
+        Ensure that the specified digital line exists on the device.  This
+        method will raise a ValueError if the line specified is invalid.
+
+        :param line_string: the string that specifies the specific line (i.e. "port0/line3")
+        :return: None
+        """
         searcher = _NIDAQmxSearcher()
         valid_lines = [line.replace(f'{self._device}/', '')
                      for line in searcher.list_do_lines(self._device)]
@@ -77,7 +84,14 @@ class NIDAQmx:
                              f'are: {", ".join(valid_lines)}')
 
     def __validate_ai(self, analog_input: str):
-        # validate that the analog input exists
+        """
+        Ensure that the specified analog input exists on the device.  This
+        method will raise a ValueError if the line specified is invalid.
+
+        :param analog_input: the string that specifies
+            the analog input (i.e. "ai1")
+        :return: None
+        """
         searcher = _NIDAQmxSearcher()
         valid_ais = [ai.replace(f'{self._device}/', '')
                      for ai in searcher.list_ai(self._device)]
@@ -87,7 +101,14 @@ class NIDAQmx:
                              f'are: {", ".join(valid_ais)}')
 
     def __validate_ao(self, analog_output: str):
-        # validate that the analog output exists
+        """
+        Ensure that the specified analog output exists on the device.  This
+        method will raise a ValueError if the line specified is invalid.
+
+        :param analog_output: the string that specifies
+            the analog output (i.e. "ao0")
+        :return: None
+        """
         searcher = _NIDAQmxSearcher()
         valid_aos = [ao.replace(f'{self._device}/', '')
                      for ao in searcher.list_ao(self._device)]
@@ -345,7 +366,7 @@ class _NIDAQmxSearcher:
 
     def list_devices(self):
         """
-        :return: A list of the attached devices, by name.
+        :return: a list of the attached devices, by name
         """
         device_char_buffer = ctypes.create_string_buffer(self.STRING_BUF_LEN)
         PyDAQmx.DAQmxGetSysDevNames(device_char_buffer, self.STRING_BUF_LEN)
@@ -357,17 +378,28 @@ class _NIDAQmxSearcher:
 
     def list_serial_numbers(self):
         """
-        :return: A list of the attached devices, by model number.
+        Return a list of serial numbers that are attached to the machine.
+
+        :return: a list of the attached devices, by model number.
         """
         return [self.product_serial_number(device) for device in self.list_devices()]
 
     def list_models(self):
-        return [self.product_type(device) for device in self.list_devices()]
-
-    def product_type(self, device_name):
         """
-        :param device_name: The enumerated device name of an attached device
-        :return: The product type or model number
+        Return a list of models that are attached to the machine
+
+        :return: a list of all model numbers that are attached
+        """
+
+        return list(set([self.model_number(device) for device in self.list_devices()]))
+
+    def model_number(self, device_name):
+        """
+        Return a product type (model number) given the device name
+
+        :param device_name: the enumerated device name of an attached device
+            (i.e. "Dev3")
+        :return: the product type or model number
         """
         dev = device_name.encode('utf-8')
         dev_char_buffer = ctypes.create_string_buffer(self.STRING_BUF_LEN)
@@ -385,8 +417,10 @@ class _NIDAQmxSearcher:
 
     def product_serial_number(self, device_name):
         """
-        :param device_name: The enumerated device name of an attached device
-        :return: The product serial number
+        Return the product serial number of the specified device.
+
+        :param device_name: the enumerated device name of an attached device (i.e. "Dev3")
+        :return: the product serial number
         """
         dev = device_name.encode('utf-8')
         dev_char_buffer = ctypes.create_string_buffer(self.STRING_BUF_LEN)
@@ -429,7 +463,7 @@ class _NIDAQmxSearcher:
         """
         devices = self.list_devices()
         for device in devices:
-            if self.product_type(device) == model_number:
+            if self.model_number(device) == model_number:
                 return device
 
     def list_ai(self, device_name):
