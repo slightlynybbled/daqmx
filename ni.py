@@ -6,7 +6,7 @@ import ctypes
 import time
 
 
-class NIDAQmx:
+class NIDAQmxInstrument:
     """
     This class will create the tasks and coordinate with the
     hardware in order to achieve a particular end on an input
@@ -117,7 +117,7 @@ class NIDAQmx:
                              f'valid analog outputs for {self._device} '
                              f'are: {", ".join(valid_aos)}')
 
-    def digital_out_line(self, port_name, line_name, value):
+    def digital_out_line(self, port_name: str, line_name: str, value: bool):
         """
         This method will set the specified dev/port/line to the specified value
 
@@ -159,7 +159,7 @@ class NIDAQmx:
 
         task.StopTask()
 
-    def digital_in_line(self, port_name, line_name):
+    def digital_in_line(self, port_name: str, line_name: str):
         """
         This method will read the dev/port/line and return the value
 
@@ -215,7 +215,7 @@ class NIDAQmx:
         else:
             return False
 
-    def analog_out(self, analog_output, voltage=0.0):
+    def analog_out(self, analog_output: str, voltage: (int, float) = 0.0):
         """
         This method will write the analog value to the specified dev/ao
 
@@ -249,8 +249,9 @@ class NIDAQmx:
 
         task.StopTask()
 
-    def sample_analog_in(self, analog_input, sample_count=1, rate=1000.0,
-                         output_format=None):
+    def sample_analog_in(self, analog_input: str,
+                         sample_count: int = 1, rate: (int, float) = 1000.0,
+                         output_format: str = None):
         """
         Sample an analog input <sample_count> number of times at <rate> Hz.
 
@@ -298,8 +299,9 @@ class NIDAQmx:
         else:
             raise ValueError('output_format must be "list" or left blank')
 
-    def get_fundamental_frequency(self, analog_input,
-                                  sample_count=1000, rate=1000):
+    def get_fundamental_frequency(self, analog_input: str,
+                                  sample_count: int = 1000,
+                                  rate: (int, float) = 1000):
         """
         Acquires the fundamental frequency observed within the samples
 
@@ -525,7 +527,7 @@ class _NIDAQmxSearcher:
 
 
 if __name__ == "__main__":
-    daq = NIDAQmx(device_name='Dev3')
+    daq = NIDAQmxInstrument(device_name='Dev3')
 
     # daq.analog_out(analog_output='ao0', voltage=5.0)
     # daq.sample_analog_in(analog_input='ai0', sample_count=2)
