@@ -1,3 +1,5 @@
+import logging
+
 import PyDAQmx
 import numpy as np
 import ctypes
@@ -9,64 +11,107 @@ class NIDAQmx:
     This class will create the tasks and coordinate with the
     hardware in order to achieve a particular end on an input
     or output of the DAQ module.
+
+    The methods within this object utilize the concepts found in the
+    NI-DAQmx Help menu, such as channels and tasks.
+
+    :param device_name: the device name, often formatted like `Dev3`
+    :param serial_number: the serial number as a hexadecimal value (this is
+        usually what is printed on the label)
+    :param model_number: the model number as printed on the label
     """
     command_timeout = 100
     sleep_time = 0.001
 
-    def __init__(self, device_name=None, serial_number=None):
-        """
-        Allocates device hardware based on the device name or on the device serial number
-        :param device_name: The enumerated device name of an attached device (i.e. 'Dev3')
-        :param serial_number: The serial number as written on the product as a string (i.e. '1B5D935')
-        """
-        # todo: add access by model number
-        self.device = device_name
-        self.serial_number = serial_number
+    def __init__(self, device_name: str = None,
+                 serial_number: str = None,
+                 model_number: str = None,
+                 loglevel=logging.INFO):
+        self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger.setLevel(loglevel)
 
-        if self.device:
-            search = NIDAQmxSearch()
-            devices = search.list_references()
-            if self.device not in devices:
-                raise ValueError('device name "{}" not found'.format(self.device))
+        searcher = _NIDAQmxSearcher()
 
-        if serial_number and not self.device:
-            search = NIDAQmxSearch()
-            target_device = None
-            for device in search.list_references():
-                if search.product_serial_number(device) == int(serial_number, 16):
-                    target_device = device
-                    self.device = device
+        if device_name:
+            devices = searcher.list_devices()
+            if device_name not in devices:
+                raise ValueError(f'device name "{device_name}" not found; '
+                                 f'valid devices: {", ".join(devices)}')
+            device = device_name
+        elif serial_number:
+            device = searcher.device_lookup_by_sn(int(serial_number, 16))
+        elif model_number:
+            device = searcher.device_lookup_by_model_number(model_number)
 
-            if not target_device:
-                raise ValueError('serial number {} does not correspond to an attached device')
-
-        # when no specific device is specified, grab the first one
-        if not device_name and not serial_number:
-            search = NIDAQmxSearch()
-            devices = search.list_references()
-            if len(devices) == 1:
-                self.device = devices[0]
+        else:  # when no specific device is specified, grab the first one
+            devices = searcher.list_devices()
+            if len(devices) == 0:
+                raise ValueError('no devices found')
+            elif len(devices) == 1:
+                device = devices[0]
             else:
-                raise ValueError('serial number {} does not correspond to an attached device')
+                raise ValueError('multiple devices found')
 
-    def _validate(self, current_value, prefix):
+        self._device = device
+
+    def __format(self, current_value: (int, str), prefix: str):
+        """
+        Convenience function to add consistency throughout the object.
+
+        :param current_value: a numeric string or integer
+        :param prefix: the string prefix, such as "port" or "line"
+        :return: the formatted string, such as "port0" or "line1"
+        """
         if isinstance(current_value, int):
             return prefix + str(current_value)
         else:
             return current_value.lower()
 
+    def __validate_line(self, line_string: str):
+        searcher = _NIDAQmxSearcher()
+        valid_lines = [line.replace(f'{self._device}/', '')
+                     for line in searcher.list_do_lines(self._device)]
+        if line_string not in valid_lines:
+            raise ValueError(f'the analog input "{line_string}" not found; '
+                             f'valid analog outputs for {self._device} '
+                             f'are: {", ".join(valid_lines)}')
+
+    def __validate_ai(self, analog_input: str):
+        # validate that the analog input exists
+        searcher = _NIDAQmxSearcher()
+        valid_ais = [ai.replace(f'{self._device}/', '')
+                     for ai in searcher.list_ai(self._device)]
+        if analog_input not in valid_ais:
+            raise ValueError(f'the analog input "{analog_input}" not found; '
+                             f'valid analog outputs for {self._device} '
+                             f'are: {", ".join(valid_ais)}')
+
+    def __validate_ao(self, analog_output: str):
+        # validate that the analog output exists
+        searcher = _NIDAQmxSearcher()
+        valid_aos = [ao.replace(f'{self._device}/', '')
+                     for ao in searcher.list_ao(self._device)]
+        if analog_output not in valid_aos:
+            raise ValueError(f'the analog output "{analog_output}" not found; '
+                             f'valid analog outputs for {self._device} '
+                             f'are: {", ".join(valid_aos)}')
+
     def digital_out_line(self, port_name, line_name, value):
         """
         This method will set the specified dev/port/line to the specified value
-        :param port_name: NI port designations (i.e. 'port0')
-        :param line_name: NI line designations (i.e. 'line0')
-        :param value: True or False
+
+        :param port_name: the NI port designations (i.e. 'port0')
+        :param line_name: the NI line designations (i.e. 'line0')
+        :param value: True if the line is to be held "high" else False
         :return: None
         """
-        port_name = self._validate(port_name, 'port')
-        line_name = self._validate(line_name, 'line')
+        port_name = self.__format(port_name, 'port')
+        line_name = self.__format(line_name, 'line')
 
-        physical_channel = "{}/{}/{}".format(self.device, port_name, line_name).encode('utf-8')
+        line = f'{port_name}/{line_name}'
+        self.__validate_line(line)
+
+        physical_channel = f"{self._device}/{line}".encode('utf-8')
 
         task = PyDAQmx.Task()
         task.CreateDOChan(physical_channel,
@@ -96,14 +141,18 @@ class NIDAQmx:
     def digital_in_line(self, port_name, line_name):
         """
         This method will read the dev/port/line and return the value
-        :param port_name: NI port designations (i.e. 'port0')
-        :param line_name: NI line designations (i.e. 'line0')
+
+        :param port_name: the NI port designations (i.e. 'port0')
+        :param line_name: the NI line designations (i.e. 'line0')
         :return: True or False
         """
-        port_name = self._validate(port_name, 'port')
-        line_name = self._validate(line_name, 'line')
+        port_name = self.__format(port_name, 'port')
+        line_name = self.__format(line_name, 'line')
 
-        physical_channel = "{}/{}/{}".format(self.device, port_name, line_name).encode('utf-8')
+        line = f'{port_name}/{line_name}'
+        self.__validate_line(line)
+
+        physical_channel = f"{self._device}/{line}".encode('utf-8')
 
         task = PyDAQmx.Task()
 
@@ -148,14 +197,17 @@ class NIDAQmx:
     def analog_out(self, analog_output, voltage=0.0):
         """
         This method will write the analog value to the specified dev/ao
-        :param analog_output: NI analog output designation (i.e. 'ao0')
-        :param voltage: A voltage in volts
-        :return:
+
+        :param analog_output: the NI analog output designation (i.e. 'ao0')
+        :param voltage: the desired voltage in volts
+        :return: None
         """
-        analog_output = self._validate(analog_output, 'ao')
+        analog_output = self.__format(analog_output, 'ao')
+        self.__validate_ao(analog_output)
+
         voltage = float(voltage)
 
-        physical_channel = "{}/{}".format(self.device, analog_output).encode('utf-8')
+        physical_channel = f"{self._device}/{analog_output}".encode('utf-8')
 
         task = PyDAQmx.Task()
         task.CreateAOVoltageChan(physical_channel,
@@ -176,18 +228,21 @@ class NIDAQmx:
 
         task.StopTask()
 
-    def sample_analog_in(self, analog_input, sample_count=1, rate=1000.0, output_format=None):
+    def sample_analog_in(self, analog_input, sample_count=1, rate=1000.0,
+                         output_format=None):
         """
         Sample an analog input <sample_count> number of times at <rate> Hz.
-        :param analog_input: The NI analog input designation (i.e. 'ai0')
-        :param sample_count: The number of desired samples (integer)
-        :param rate: The sample rate in Hz
-        :param output_format: The output format ('list', 'array', etc.)
-        :return: The sample or samples as a numpy array
-        """
-        analog_input = self._validate(analog_input, 'ai')
 
-        physical_channel = "{}/{}".format(self.device, analog_input).encode('utf-8')
+        :param analog_input: the NI analog input designation (i.e. 'ai0')
+        :param sample_count: the number of desired samples (integer)
+        :param rate: the sample rate in Hz
+        :param output_format: the output format ('list', 'array', etc.)
+        :return: the sample or samples as a numpy array
+        """
+        analog_input = self.__format(analog_input, 'ai')
+        self.__validate_ai(analog_input)
+
+        physical_channel = f"{self._device}/{analog_input}".encode('utf-8')
         num_of_samples_read = PyDAQmx.int32()
         data = np.zeros(sample_count, dtype=np.float64)
 
@@ -222,7 +277,19 @@ class NIDAQmx:
         else:
             raise ValueError('output_format must be "list" or left blank')
 
-    def get_fundamental_frequency(self, analog_input, sample_count=1000, rate=1000):
+    def get_fundamental_frequency(self, analog_input,
+                                  sample_count=1000, rate=1000):
+        """
+        Acquires the fundamental frequency observed within the samples
+
+        :param analog_input: the NI analog input designation (i.e. 'ai0')
+        :param sample_count: the number of samples to acquired
+        :param rate: the sample rate in Hz
+        :return:
+        """
+        analog_input = self.__format(analog_input, 'ai')
+        self.__validate_ai(analog_input)
+
         signal = self.sample_analog_in(analog_input, sample_count, rate)
         fourier = np.fft.fft(signal)
         n = signal.size
@@ -254,7 +321,7 @@ class NIDAQmx:
         return frequency
 
 
-class NIDAQmxSearch:
+class _NIDAQmxSearcher:
     """
     This class is used to search the currently connected devices
     """
@@ -277,20 +344,6 @@ class NIDAQmxSearch:
         return tuple(items)
 
     def list_devices(self):
-        devices = list()
-
-        for device in self.list_references():
-            d = {
-                'reference': device,
-                'model': self.product_type(device),
-                'serial': self.product_serial_number(device)
-            }
-
-            devices.append(d)
-
-        return devices
-
-    def list_references(self):
         """
         :return: A list of the attached devices, by name.
         """
@@ -306,10 +359,10 @@ class NIDAQmxSearch:
         """
         :return: A list of the attached devices, by model number.
         """
-        return [self.product_serial_number(device) for device in self.list_references()]
+        return [self.product_serial_number(device) for device in self.list_devices()]
 
     def list_models(self):
-        return [self.product_type(device) for device in self.list_references()]
+        return [self.product_type(device) for device in self.list_devices()]
 
     def product_type(self, device_name):
         """
@@ -348,6 +401,36 @@ class NIDAQmxSearch:
         product_sn = num_buffer.value
 
         return product_sn
+
+    def device_lookup_by_sn(self, serial_number: (str, int)):
+        """
+        Lookup a device name that is currently connected to the PC by serial
+        number.  Note that many National Instruments devices print serial
+        numbers in hexadecimal!
+
+        :param serial_number: a string or integer value that can be read from
+            the device label
+        :return: the attached device that matches the serial number
+        """
+        devices = self.list_devices()
+        for device in devices:
+            if self.product_serial_number(device) == serial_number:
+                return device
+
+    def device_lookup_by_model_number(self, model_number: str):
+        """
+        Lookup a device name that is currently connected to the PC by model
+        number.  Note that, if there are multiple devices of the same model
+        number connected to the PC, then this function will return the first
+        instance encountered.
+
+        :param model_number: a string that can be read from the device label
+        :return: the first attached device that matches the model number
+        """
+        devices = self.list_devices()
+        for device in devices:
+            if self.product_type(device) == model_number:
+                return device
 
     def list_ai(self, device_name):
         """
@@ -408,16 +491,8 @@ class NIDAQmxSearch:
 
 
 if __name__ == "__main__":
-    ni_daq_search = NIDAQmxSearch()
-    dev_list = ni_daq_search.list_references()
+    daq = NIDAQmx(device_name='Dev3')
 
-    print('ni search results: {}'.format(dev_list))
-    print(ni_daq_search.list_do_lines(dev_list[0]))
-    #print(ni_daq_search.list_ao(dev_list[0]))
-
-    device = dev_list[0]
-
-    daq = NIDAQmx(device)
     # daq.analog_out(analog_output='ao0', voltage=5.0)
     # daq.sample_analog_in(analog_input='ai0', sample_count=2)
 
