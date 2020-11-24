@@ -159,13 +159,13 @@ class NIDAQmxInstrument:
 
         task.StopTask()
 
-    def digital_in_line(self, port_name: str, line_name: str):
+    def digital_in_line(self, port_name: str, line_name: str) -> bool:
         """
         This method will read the dev/port/line and return the value
 
         :param port_name: the NI port designations (i.e. 'port0')
         :param line_name: the NI line designations (i.e. 'line0')
-        :return: True or False
+        :return: True if input is "high" else False
         """
         port_name = self.__format(port_name, 'port')
         line_name = self.__format(line_name, 'line')
