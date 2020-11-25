@@ -6,6 +6,9 @@ import ctypes
 import time
 
 
+__version__ = '0.1.0'
+
+
 class NIDAQmxInstrument:
     """
     This class will create the tasks and coordinate with the
