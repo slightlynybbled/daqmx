@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 
 import PyDAQmx
@@ -7,6 +8,74 @@ import time
 
 
 __version__ = '0.3.0'
+
+
+def __format(current_value: (int, str), prefix: str):
+    """
+    Convenience function to add consistency throughout the object.
+
+    :param current_value: a numeric string or integer
+    :param prefix: the string prefix, such as "port" or "line"
+    :return: the formatted string, such as "port0" or "line1"
+    """
+    if isinstance(current_value, int):
+        return prefix + str(current_value)
+    else:
+        return current_value.lower()
+
+
+def __validate_ao(device: str, analog_output: str):
+    """
+    Ensure that the specified analog output exists on the device.  This
+    method will raise a ValueError if the line specified is invalid.
+
+    :param analog_output: the string that specifies
+        the analog output (i.e. "ao0")
+    :return: None
+    """
+    searcher = _NIDAQmxSearcher()
+    valid_aos = [ao.replace(f'{device}/', '')
+                 for ao in searcher.list_ao(device)]
+    if analog_output not in valid_aos:
+        raise ValueError(f'the analog output "{analog_output}" not found; '
+                         f'valid analog outputs for {device} '
+                         f'are: {", ".join(valid_aos)}')
+
+
+def analog_out(device: str, analog_output: str, voltage: (int, float) = 0.0):
+    """
+    This method will write the analog value to the specified dev/ao
+
+    :param device: the NI device reference (i.e. 'Dev3')
+    :param analog_output: the NI analog output designation (i.e. 'ao0')
+    :param voltage: the desired voltage in volts
+    :return: None
+    """
+    analog_output = __format(analog_output, 'ao')
+    __validate_ao(device, analog_output)
+
+    voltage = float(voltage)
+
+    physical_channel = f"{device}/{analog_output}".encode('utf-8')
+
+    task = PyDAQmx.Task()
+    task.CreateAOVoltageChan(physical_channel,
+                             ''.encode('utf-8'),
+                             -10.0,
+                             10.0,
+                             PyDAQmx.DAQmx_Val_Volts,
+                             None)
+
+    autostart = 1
+    timeout = 10.0
+
+    task.StartTask()
+    task.WriteAnalogScalarF64(autostart,
+                              timeout,
+                              voltage,
+                              None)
+
+    task.StopTask()
 
 
 class NIDAQmxInstrument:
@@ -30,8 +99,6 @@ class NIDAQmxInstrument:
                  serial_number: str = None,
                  model_number: str = None,
                  loglevel=logging.INFO):
-        self._logger = logging.getLogger(self.__class__.__name__)
-        self._logger.setLevel(loglevel)
 
         searcher = _NIDAQmxSearcher()
 
@@ -55,7 +122,37 @@ class NIDAQmxInstrument:
             else:
                 raise ValueError('multiple devices found')
 
+        # todo: uses setattr to add attributes to a class at runtime
+        analog_outputs = [ao.split('/')[1] for ao in searcher.list_ao(device)]
+
+        #digital_outputs = [f'{do.split("/")[1]}/{do.split("/")[2]}' for do in searcher.list_do_lines(device)]
+        digital_outputs = []
+        for do in searcher.list_do_lines(device):
+            _, port, line = do.split('/')
+
+        outputs = analog_outputs + digital_outputs
+
+        print(outputs)
+
+        self._outputs = outputs
         self._device = device
+        self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger.setLevel(loglevel)
+
+    def __setattr__(self, attr, value):
+        # todo: trying to make hardware attributes more "pythonic"
+        if 'ao' in attr and self.__check_for_io(attr):
+            analog_out(self._device, attr, value)
+        if 'port' in attr and self.__check_for_io(attr):
+            print('port is being set:', attr, value)
+
+        self.__dict__[attr] = value
+
+    def __check_for_io(self, io_name):
+        if io_name in self._outputs:
+            return True
+        else:
+            return False
 
     def __format(self, current_value: (int, str), prefix: str):
         """
@@ -532,13 +629,22 @@ class _NIDAQmxSearcher:
 if __name__ == "__main__":
     daq = NIDAQmxInstrument(device_name='Dev3')
 
-    # daq.analog_out(analog_output='ao0', voltage=5.0)
-    # daq.sample_analog_in(analog_input='ai0', sample_count=2)
 
-    # daq.read_digital_line(port_name='port0')
-    daq.digital_out_line(port_name='port0', line_name='line0', value=True)
-    daq.analog_out('ao0', voltage=2.0)
 
-    print(daq.sample_analog_in('ai0'))
-    print(daq.sample_analog_in('ai0', sample_count=4))
-    #print(daq.digital_in_line('port0', 'line0'))
+    daq.ao0 = 4.5
+    daq.ao1 = 2.6
+
+    daq.port0 = True
+
+    print(daq.__dict__)
+
+    # # daq.analog_out(analog_output='ao0', voltage=5.0)
+    # # daq.sample_analog_in(analog_input='ai0', sample_count=2)
+    #
+    # # daq.read_digital_line(port_name='port0')
+    # daq.digital_out_line(port_name='port0', line_name='line0', value=True)
+    # daq.analog_out('ao0', voltage=2.0)
+    #
+    # print(daq.sample_analog_in('ai0'))
+    # print(daq.sample_analog_in('ai0', sample_count=4))
+    # #print(daq.digital_in_line('port0', 'line0'))
