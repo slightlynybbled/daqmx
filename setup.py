@@ -1,11 +1,11 @@
 from setuptools import setup, find_packages
-from ni import __version__
+from daqmx.daqmx import __version__
 
 with open('requirements.txt', 'r') as f:
     REQUIREMENTS = [s.strip() for s in f.readlines()]
 
 setup(
-    name='ni',
+    name='daqmx',
     version=__version__,
     description='DAQ control using National Instruments DAQmx framework',
     author='Jason R. Jones',
