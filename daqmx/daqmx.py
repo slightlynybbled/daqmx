@@ -141,10 +141,18 @@ class NIDAQmxInstrument:
 
     def __setattr__(self, attr, value):
         # todo: trying to make hardware attributes more "pythonic"
-        if 'ao' in attr and self.__check_for_io(attr):
-            analog_out(self._device, attr, value)
-        if 'port' in attr and self.__check_for_io(attr):
-            print('port is being set:', attr, value)
+        if '_outputs' in self.__dict__.keys():
+            if attr in ['_device', '_logger']:
+                pass  # ignore the attributes that are
+                      # supposed to be part of the class
+            elif attr in self._outputs:
+                if 'ao' in attr:
+                    analog_out(self._device, attr, value)
+                if 'port' in attr:
+                    print('port is being set:', attr, value)
+            else:
+                raise AttributeError(f'"{attr}" does not appear '
+                                     f'to exist on the device')
 
         self.__dict__[attr] = value
 
@@ -642,8 +650,9 @@ if __name__ == "__main__":
 
     daq.ao0 = 4.5
     daq.ao1 = 2.6
+    #daq.ao2 = 2.6
 
-    daq.port0 = True
+    #daq.port0 = True
 
     print(daq.__dict__)
 
