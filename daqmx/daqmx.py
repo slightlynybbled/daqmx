@@ -148,6 +148,15 @@ class NIDAQmxInstrument:
 
         self.__dict__[attr] = value
 
+    @property
+    def sn(self):
+        """
+        Returns the device serial number
+
+        :return: the device serial number
+        """
+        return _NIDAQmxSearcher().product_serial_number(self._device)
+
     def __check_for_io(self, io_name):
         if io_name in self._outputs:
             return True
