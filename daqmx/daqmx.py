@@ -42,6 +42,23 @@ def __validate_ao(device: str, analog_output: str):
                          f'are: {", ".join(valid_aos)}')
 
 
+def __validate_line(device: str, line_string: str):
+    """
+    Ensure that the specified digital line exists on the device.  This
+    method will raise a ValueError if the line specified is invalid.
+
+    :param line_string: the string that specifies the specific line (i.e. "port0/line3")
+    :return: None
+    """
+    searcher = _NIDAQmxSearcher()
+    valid_lines = [line.replace(f'{device}/', '')
+                 for line in searcher.list_do_lines(device)]
+    if line_string not in valid_lines:
+        raise ValueError(f'the analog input "{line_string}" not found; '
+                         f'valid analog outputs for {device} '
+                         f'are: {", ".join(valid_lines)}')
+
+
 def analog_out(device: str, analog_output: str, voltage: (int, float) = 0.0):
     """
     This method will write the analog value to the specified dev/ao
@@ -76,6 +93,81 @@ def analog_out(device: str, analog_output: str, voltage: (int, float) = 0.0):
                               None)
 
     task.StopTask()
+
+
+def digital_out_line(device: str, port_name: str, line_name: str, value: bool):
+    """
+    This method will set the specified dev/port/line to the specified value
+
+    :param port_name: the NI port designations (i.e. 'port0')
+    :param line_name: the NI line designations (i.e. 'line0')
+    :param value: True if the line is to be held "high" else False
+    :return: None
+    """
+    port_name = __format(port_name, 'port')
+    line_name = __format(line_name, 'line')
+
+    line = f'{port_name}/{line_name}'
+    __validate_line(device, line)
+
+    physical_channel = f"{device}/{line}".encode('utf-8')
+
+    task = PyDAQmx.Task()
+    task.CreateDOChan(physical_channel,
+                      ''.encode('utf-8'),
+                      PyDAQmx.DAQmx_Val_ChanForAllLines)
+
+    if value:
+        data = np.array([1], dtype=np.uint8)
+    else:
+        data = np.array([0], dtype=np.uint8)
+    samples_written = PyDAQmx.int32()
+
+    autostart = 1
+    timeout = 10.0
+
+    task.StartTask()
+    task.WriteDigitalLines(1,
+                           autostart,
+                           timeout,
+                           PyDAQmx.DAQmx_Val_GroupByChannel,
+                           data,
+                           PyDAQmx.byref(samples_written),
+                           None)
+
+    task.StopTask()
+
+
+class _Port:
+    def __init__(self, device: str, port: str):
+        searcher = _NIDAQmxSearcher()
+
+        self._device = device
+        self._port = port
+
+        lines = []
+        for line in searcher.list_do_lines(device):
+            _, p, l = line.split('/')
+            if p == port:
+                lines.append(l)
+        self._lines = lines
+
+    @property
+    def lines(self):
+        return self._lines
+
+    def __setattr__(self, key, value):
+        if '_lines' in self.__dict__.keys():
+            if key in self.__dict__['_lines']:
+                if not isinstance(value, bool):
+                    raise ValueError(f'{self._device}/{self._port}/{key} may only '
+                                     f'be "True" or "False"')
+
+                digital_out_line(self._device, self._port, key, value)
+            else:
+                raise ValueError(f'line "{key}" does not exist on this port')
+
+        self.__dict__[key] = value
 
 
 class NIDAQmxInstrument:
@@ -124,17 +216,14 @@ class NIDAQmxInstrument:
 
         # todo: uses setattr to add attributes to a class at runtime
         analog_outputs = [ao.split('/')[1] for ao in searcher.list_ao(device)]
-
-        #digital_outputs = [f'{do.split("/")[1]}/{do.split("/")[2]}' for do in searcher.list_do_lines(device)]
         digital_outputs = []
-        for do in searcher.list_do_lines(device):
-            _, port, line = do.split('/')
+        for p in searcher.list_do_lines(device):
+            _, p, _ = p.split('/')
+            digital_outputs.append(p)
+        digital_outputs = list(set(digital_outputs))
 
-        outputs = analog_outputs + digital_outputs
+        self._outputs = analog_outputs + digital_outputs
 
-        print(outputs)
-
-        self._outputs = outputs
         self._device = device
         self._logger = logging.getLogger(self.__class__.__name__)
         self._logger.setLevel(loglevel)
@@ -148,13 +237,19 @@ class NIDAQmxInstrument:
             elif attr in self._outputs:
                 if 'ao' in attr:
                     analog_out(self._device, attr, value)
-                if 'port' in attr:
+                elif 'port' in attr:
                     print('port is being set:', attr, value)
-            else:
-                raise AttributeError(f'"{attr}" does not appear '
-                                     f'to exist on the device')
+                else:
+                    raise AttributeError(f'"{attr}" does not appear '
+                                         f'to exist on the device')
 
         self.__dict__[attr] = value
+
+    def __getattribute__(self, name):
+        if 'port' in name:
+            return _Port(self._device, name)
+
+        return super().__getattribute__(name)
 
     @property
     def sn(self):
@@ -164,6 +259,10 @@ class NIDAQmxInstrument:
         :return: the device serial number
         """
         return _NIDAQmxSearcher().product_serial_number(self._device)
+
+    @property
+    def outputs(self):
+        return self._outputs
 
     def __check_for_io(self, io_name):
         if io_name in self._outputs:
@@ -645,16 +744,20 @@ class _NIDAQmxSearcher:
 
 if __name__ == "__main__":
     daq = NIDAQmxInstrument(device_name='Dev3')
-
-
+    #daq.digital_out_line(port_name='port0', line_name='line1', value=True)
 
     daq.ao0 = 4.5
     daq.ao1 = 2.6
-    #daq.ao2 = 2.6
+    #daq.ao2 = 2.6  # should cause an error
 
-    #daq.port0 = True
+    #port = _Port('Dev3', 'port0')
+    #port.line1 = True
+    #print(port.lines)
 
-    print(daq.__dict__)
+    print(daq.port0.lines)
+    daq.port0.line1 = False
+
+    #print(daq.__dict__)
 
     # # daq.analog_out(analog_output='ao0', voltage=5.0)
     # # daq.sample_analog_in(analog_input='ai0', sample_count=2)
