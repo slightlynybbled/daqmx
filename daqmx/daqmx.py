@@ -216,11 +216,15 @@ def digital_in_line(device: str, port_name: str, line_name: str) -> bool:
         return True
     return False
 
-# todo: add differential mode along with single-ended mode
-# todo: add ranges
+
 def sample_analog_in(device: str,
                      analog_input: str,
-                     sample_count: int = 1, rate: (int, float) = 1000.0,
+                     sample_count: int = 1,
+                     rate: (int, float) = 1000.0,
+                     max_voltage: (int, float) = 5.0,
+                     min_voltage: (int, float) = 0.0,
+                     mode: str = 'differential',
+                     timeout: (int, float) = -1,
                      output_format: str = None):
     """
     Sample an analog input <sample_count> number of times at <rate> Hz.
@@ -229,21 +233,37 @@ def sample_analog_in(device: str,
     :param analog_input: the NI analog input designation (i.e. 'ai0')
     :param sample_count: the number of desired samples (integer)
     :param rate: the sample rate in Hz
+    :param max_voltage: the maximum voltage possible
+    :param min_voltage: the minimum voltage range
+    :param mode: the voltage mode of operation; choices: 'differential',
+        'pseudo-differential', 'single-ended referenced',
+        'single-ended non-referenced'
+    :param timeout: the time at which the function should return if this
+        time has elapsed; set to -1 to make infinite (default)
     :param output_format: the output format ('list', 'array', etc.)
     :return: the sample or samples as a numpy array
     """
+    mode_lookup = {'differential': PyDAQmx.DAQmx_Val_Diff,
+                   'pseudo-differential': PyDAQmx.DAQmx_Val_PseudoDiff,
+                   'single-ended referenced': PyDAQmx.DAQmx_Val_RSE,
+                   'single-ended non-referenced': PyDAQmx.DAQmx_Val_NRSE}
+
+    if mode.lower() not in mode_lookup.keys():
+        raise ValueError(f'mode "{mode}" not valid, expected values: {", ".join(mode_lookup.keys())}')
+
     analog_input = __format(analog_input, 'ai')
     __validate_ai(device, analog_input)
 
     physical_channel = f"{device}/{analog_input}".encode('utf-8')
+
     num_of_samples_read = PyDAQmx.int32()
     data = np.zeros(sample_count, dtype=np.float64)
 
     task = PyDAQmx.Task()
     task.CreateAIVoltageChan(physical_channel,
                              "",
-                             PyDAQmx.DAQmx_Val_Diff,
-                             -10.0, 10.0,
+                             mode_lookup[mode],
+                             -min_voltage, max_voltage,
                              PyDAQmx.DAQmx_Val_Volts,
                              None)
 
@@ -256,12 +276,18 @@ def sample_analog_in(device: str,
 
     task.StartTask()
     task.ReadAnalogF64(sample_count,
-                       10.0,
+                       timeout,
                        PyDAQmx.DAQmx_Val_GroupByChannel,
                        data,
                        sample_count,
                        PyDAQmx.byref(num_of_samples_read),
                        None)
+
+    if sample_count != num_of_samples_read.value:
+        raise RuntimeWarning(f'the number of samples returned '
+                             f'({num_of_samples_read}) does not match '
+                             f'the number of samples requested '
+                             f'({sample_count})')
 
     if not output_format:
         return data
@@ -470,138 +496,6 @@ class NIDAQmxInstrument:
                              f'valid analog outputs for {self._device} '
                              f'are: {", ".join(valid_aos)}')
 
-    def digital_out_line(self, port_name: str, line_name: str, value: bool):
-        """
-        This method will set the specified dev/port/line to the specified value
-
-        :param port_name: the NI port designations (i.e. 'port0')
-        :param line_name: the NI line designations (i.e. 'line0')
-        :param value: True if the line is to be held "high" else False
-        :return: None
-        """
-        port_name = self.__format(port_name, 'port')
-        line_name = self.__format(line_name, 'line')
-
-        line = f'{port_name}/{line_name}'
-        self.__validate_line(line)
-
-        physical_channel = f"{self._device}/{line}".encode('utf-8')
-
-        task = PyDAQmx.Task()
-        task.CreateDOChan(physical_channel,
-                          ''.encode('utf-8'),
-                          PyDAQmx.DAQmx_Val_ChanForAllLines)
-
-        if value:
-            data = np.array([1], dtype=np.uint8)
-        else:
-            data = np.array([0], dtype=np.uint8)
-        samples_written = PyDAQmx.int32()
-
-        autostart = 1
-        timeout = 10.0
-
-        task.StartTask()
-        task.WriteDigitalLines(1,
-                               autostart,
-                               timeout,
-                               PyDAQmx.DAQmx_Val_GroupByChannel,
-                               data,
-                               PyDAQmx.byref(samples_written),
-                               None)
-
-        task.StopTask()
-
-    def digital_in_line(self, port_name: str, line_name: str) -> bool:
-        """
-        This method will read the dev/port/line and return the value
-
-        :param port_name: the NI port designations (i.e. 'port0')
-        :param line_name: the NI line designations (i.e. 'line0')
-        :return: True if input is "high" else False
-        """
-        port_name = self.__format(port_name, 'port')
-        line_name = self.__format(line_name, 'line')
-
-        line = f'{port_name}/{line_name}'
-        self.__validate_line(line)
-
-        physical_channel = f"{self._device}/{line}".encode('utf-8')
-
-        task = PyDAQmx.Task()
-
-        start_time = time.perf_counter()
-        success = False
-
-        while not success:
-            try:
-                task.CreateDIChan(physical_channel,
-                                  ''.encode('utf-8'),
-                                  PyDAQmx.DAQmx_Val_ChanForAllLines)
-                success = True
-            except PyDAQmx.DAQError as e:
-                if (time.perf_counter() - start_time) > self.command_timeout:
-                    return None
-
-                time.sleep(self.sleep_time)
-
-        data = np.array([1], dtype=np.uint8)
-        samples_written = PyDAQmx.int32()
-
-        samples_per_channel = 1
-        timeout = 10.0
-
-        task.StartTask()
-        task.ReadDigitalLines(samples_per_channel,
-                              timeout,
-                              PyDAQmx.DAQmx_Val_GroupByChannel,
-                              data,
-                              1,
-                              None,
-                              None,
-                              None)
-
-        task.StopTask()
-
-        if data == [1]:
-            return True
-        else:
-            return False
-
-    def analog_out(self, analog_output: str, voltage: (int, float) = 0.0):
-        """
-        This method will write the analog value to the specified dev/ao
-
-        :param analog_output: the NI analog output designation (i.e. 'ao0')
-        :param voltage: the desired voltage in volts
-        :return: None
-        """
-        analog_output = self.__format(analog_output, 'ao')
-        self.__validate_ao(analog_output)
-
-        voltage = float(voltage)
-
-        physical_channel = f"{self._device}/{analog_output}".encode('utf-8')
-
-        task = PyDAQmx.Task()
-        task.CreateAOVoltageChan(physical_channel,
-                                 ''.encode('utf-8'),
-                                 -10.0,
-                                 10.0,
-                                 PyDAQmx.DAQmx_Val_Volts,
-                                 None)
-
-        autostart = 1
-        timeout = 10.0
-
-        task.StartTask()
-        task.WriteAnalogScalarF64(autostart,
-                                  timeout,
-                                  voltage,
-                                  None)
-
-        task.StopTask()
-
     def sample_analog_in(self, analog_input: str,
                          sample_count: int = 1, rate: (int, float) = 1000.0,
                          output_format: str = None):
@@ -614,64 +508,48 @@ class NIDAQmxInstrument:
         :param output_format: the output format ('list', 'array', etc.)
         :return: the sample or samples as a numpy array
         """
-        analog_input = self.__format(analog_input, 'ai')
-        self.__validate_ai(analog_input)
+        return sample_analog_in(analog_input=analog_input,
+                                sample_count=sample_count,
+                                rate=rate,
+                                output_format=output_format)
 
-        physical_channel = f"{self._device}/{analog_input}".encode('utf-8')
-        num_of_samples_read = PyDAQmx.int32()
-        data = np.zeros(sample_count, dtype=np.float64)
-
-        task = PyDAQmx.Task()
-        task.CreateAIVoltageChan(physical_channel,
-                                 "",
-                                 PyDAQmx.DAQmx_Val_Diff,
-                                 -10.0, 10.0,
-                                 PyDAQmx.DAQmx_Val_Volts,
-                                 None)
-
-        if sample_count > 1:
-            task.CfgSampClkTiming("",
-                                  rate,
-                                  PyDAQmx.DAQmx_Val_Rising,
-                                  PyDAQmx.DAQmx_Val_FiniteSamps,
-                                  sample_count)
-
-        task.StartTask()
-        task.ReadAnalogF64(sample_count,
-                           10.0,
-                           PyDAQmx.DAQmx_Val_GroupByChannel,
-                           data,
-                           sample_count,
-                           PyDAQmx.byref(num_of_samples_read),
-                           None)
-
-        if not output_format:
-            return data
-        elif output_format == 'list':
-            return list(data)
-        else:
-            raise ValueError('output_format must be "list" or left blank')
-
-    def get_fundamental_frequency(self, analog_input: str,
-                                  sample_count: int = 1000,
-                                  rate: (int, float) = 1000):
+    def find_dominant_frequency(self, analog_input: str,
+                                sample_count: int = 1000,
+                                rate: (int, float) = 1000,
+                                max_voltage: (int, float) = 5.0,
+                                min_voltage: (int, float) = 0.0,
+                                mode: str = 'differential',
+                                timeout: (int, float) = -1):
         """
         Acquires the fundamental frequency observed within the samples
 
         :param analog_input: the NI analog input designation (i.e. 'ai0')
         :param sample_count: the number of samples to acquired
         :param rate: the sample rate in Hz
-        :return:
+            :param max_voltage: the maximum voltage possible
+        :param min_voltage: the minimum voltage range
+        :param mode: the voltage mode of operation; choices: 'differential',
+            'pseudo-differential', 'single-ended referenced',
+            'single-ended non-referenced'
+        :param timeout: the time at which the function should return if this
+            time has elapsed; set to -1 to make infinite (default)
+        :return: the frequency found to be at the highest amplitude; this is
+            often the fundamental frequency in many domains
         """
-        analog_input = self.__format(analog_input, 'ai')
-        self.__validate_ai(analog_input)
+        signal = sample_analog_in(device=self._device,
+                                  analog_input=analog_input,
+                                  sample_count=sample_count,
+                                  rate=rate,
+                                  max_voltage=max_voltage,
+                                  min_voltage=min_voltage,
+                                  mode=mode,
+                                  timeout=timeout)
 
-        signal = self.sample_analog_in(analog_input, sample_count, rate)
         fourier = np.fft.fft(signal)
         n = signal.size
-        timestep = 1 / rate
+        time_step = 1 / rate
 
-        freq = np.fft.fftfreq(n, d=timestep)
+        freq = np.fft.fftfreq(n, d=time_step)
 
         # make a series of tuples that couple the
         # absolute magnitude with the frequency
