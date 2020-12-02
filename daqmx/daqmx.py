@@ -78,7 +78,7 @@ def __validate_ai(device, analog_input: str):
                          f'are: {", ".join(valid_ais)}')
 
 
-def analog_out(device: str, analog_output: str, voltage: (int, float) = 0.0):
+def _analog_out(device: str, analog_output: str, voltage: (int, float) = 0.0):
     """
     This method will write the analog value to the specified dev/ao
 
@@ -114,7 +114,7 @@ def analog_out(device: str, analog_output: str, voltage: (int, float) = 0.0):
     task.StopTask()
 
 
-def digital_out_line(device: str, port_name: str, line_name: str, value: bool):
+def _digital_out_line(device: str, port_name: str, line_name: str, value: bool):
     """
     This method will set the specified dev/port/line to the specified value
 
@@ -157,7 +157,7 @@ def digital_out_line(device: str, port_name: str, line_name: str, value: bool):
     task.StopTask()
 
 
-def digital_in_line(device: str, port_name: str, line_name: str) -> bool:
+def _digital_in_line(device: str, port_name: str, line_name: str) -> bool:
     """
     This method will read the dev/port/line and return the value
 
@@ -195,7 +195,6 @@ def digital_in_line(device: str, port_name: str, line_name: str) -> bool:
             time.sleep(sleep_time)
 
     data = np.array([1], dtype=np.uint8)
-    samples_written = PyDAQmx.int32()
 
     samples_per_channel = 1
     timeout = 10.0
@@ -217,15 +216,15 @@ def digital_in_line(device: str, port_name: str, line_name: str) -> bool:
     return False
 
 
-def sample_analog_in(device: str,
-                     analog_input: str,
-                     sample_count: int = 1,
-                     rate: (int, float) = 1000.0,
-                     max_voltage: (int, float) = 5.0,
-                     min_voltage: (int, float) = 0.0,
-                     mode: str = 'differential',
-                     timeout: (int, float) = -1,
-                     output_format: str = None):
+def _sample_analog_in(device: str,
+                      analog_input: str,
+                      sample_count: int = 1,
+                      rate: (int, float) = 1000.0,
+                      max_voltage: (int, float) = 5.0,
+                      min_voltage: (int, float) = 0.0,
+                      mode: str = 'differential',
+                      timeout: (int, float) = -1,
+                      output_format: str = None):
     """
     Sample an analog input <sample_count> number of times at <rate> Hz.
 
@@ -322,7 +321,7 @@ class _Port:
                     raise ValueError(f'{self._device}/{self._port}/{key} may only '
                                      f'be "True" or "False"')
 
-                digital_out_line(self._device, self._port, key, value)
+                _digital_out_line(self._device, self._port, key, value)
             else:
                 raise ValueError(f'line "{key}" does not exist on this port')
         else:
@@ -330,7 +329,7 @@ class _Port:
 
     def __getattr__(self, item):
         if 'line' in item:
-            value = digital_in_line(self._device, self._port, item)
+            value = _digital_in_line(self._device, self._port, item)
             return value
 
 
@@ -399,7 +398,7 @@ class NIDAQmxInstrument:
                       # supposed to be part of the class
             elif attr in self._outputs:
                 if 'ao' in attr:
-                    analog_out(self._device, attr, value)
+                    _analog_out(self._device, attr, value)
                 else:
                     raise AttributeError(f'"{attr}" does not appear '
                                          f'to exist on the device')
@@ -410,7 +409,7 @@ class NIDAQmxInstrument:
         if 'port' in name:
             return _Port(self._device, name)
         elif 'ai' in name:
-            return sample_analog_in(self._device, name)[0]
+            return _sample_analog_in(self._device, name)[0]
 
         return super().__getattribute__(name)
 
@@ -508,10 +507,10 @@ class NIDAQmxInstrument:
         :param output_format: the output format ('list', 'array', etc.)
         :return: the sample or samples as a numpy array
         """
-        return sample_analog_in(analog_input=analog_input,
-                                sample_count=sample_count,
-                                rate=rate,
-                                output_format=output_format)
+        return _sample_analog_in(analog_input=analog_input,
+                                 sample_count=sample_count,
+                                 rate=rate,
+                                 output_format=output_format)
 
     def find_dominant_frequency(self, analog_input: str,
                                 sample_count: int = 1000,
@@ -536,14 +535,14 @@ class NIDAQmxInstrument:
         :return: the frequency found to be at the highest amplitude; this is
             often the fundamental frequency in many domains
         """
-        signal = sample_analog_in(device=self._device,
-                                  analog_input=analog_input,
-                                  sample_count=sample_count,
-                                  rate=rate,
-                                  max_voltage=max_voltage,
-                                  min_voltage=min_voltage,
-                                  mode=mode,
-                                  timeout=timeout)
+        signal = _sample_analog_in(device=self._device,
+                                   analog_input=analog_input,
+                                   sample_count=sample_count,
+                                   rate=rate,
+                                   max_voltage=max_voltage,
+                                   min_voltage=min_voltage,
+                                   mode=mode,
+                                   timeout=timeout)
 
         fourier = np.fft.fft(signal)
         n = signal.size
