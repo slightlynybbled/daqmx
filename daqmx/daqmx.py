@@ -59,6 +59,25 @@ def __validate_line(device: str, line_string: str):
                          f'are: {", ".join(valid_lines)}')
 
 
+def __validate_ai(device, analog_input: str):
+    """
+    Ensure that the specified analog input exists on the device.  This
+    method will raise a ValueError if the line specified is invalid.
+
+    :param device: the device string (i.e. 'Dev3')
+    :param analog_input: the string that specifies
+        the analog input (i.e. "ai1")
+    :return: None
+    """
+    searcher = _NIDAQmxSearcher()
+    valid_ais = [ai.replace(f'{device}/', '')
+                 for ai in searcher.list_ai(device)]
+    if analog_input not in valid_ais:
+        raise ValueError(f'the analog input "{analog_input}" not found; '
+                         f'valid analog outputs for {device} '
+                         f'are: {", ".join(valid_ais)}')
+
+
 def analog_out(device: str, analog_output: str, voltage: (int, float) = 0.0):
     """
     This method will write the analog value to the specified dev/ao
@@ -197,6 +216,60 @@ def digital_in_line(device: str, port_name: str, line_name: str) -> bool:
         return True
     return False
 
+# todo: add differential mode along with single-ended mode
+# todo: add ranges
+def sample_analog_in(device: str,
+                     analog_input: str,
+                     sample_count: int = 1, rate: (int, float) = 1000.0,
+                     output_format: str = None):
+    """
+    Sample an analog input <sample_count> number of times at <rate> Hz.
+
+    :param device: the NI device (i.e. "Dev3")
+    :param analog_input: the NI analog input designation (i.e. 'ai0')
+    :param sample_count: the number of desired samples (integer)
+    :param rate: the sample rate in Hz
+    :param output_format: the output format ('list', 'array', etc.)
+    :return: the sample or samples as a numpy array
+    """
+    analog_input = __format(analog_input, 'ai')
+    __validate_ai(device, analog_input)
+
+    physical_channel = f"{device}/{analog_input}".encode('utf-8')
+    num_of_samples_read = PyDAQmx.int32()
+    data = np.zeros(sample_count, dtype=np.float64)
+
+    task = PyDAQmx.Task()
+    task.CreateAIVoltageChan(physical_channel,
+                             "",
+                             PyDAQmx.DAQmx_Val_Diff,
+                             -10.0, 10.0,
+                             PyDAQmx.DAQmx_Val_Volts,
+                             None)
+
+    if sample_count > 1:
+        task.CfgSampClkTiming("",
+                              rate,
+                              PyDAQmx.DAQmx_Val_Rising,
+                              PyDAQmx.DAQmx_Val_FiniteSamps,
+                              sample_count)
+
+    task.StartTask()
+    task.ReadAnalogF64(sample_count,
+                       10.0,
+                       PyDAQmx.DAQmx_Val_GroupByChannel,
+                       data,
+                       sample_count,
+                       PyDAQmx.byref(num_of_samples_read),
+                       None)
+
+    if not output_format:
+        return data
+    elif output_format == 'list':
+        return list(data)
+    else:
+        raise ValueError('output_format must be "list" or left blank')
+
 
 class _Port:
     def __init__(self, device: str, port: str):
@@ -279,7 +352,7 @@ class NIDAQmxInstrument:
             else:
                 raise ValueError('multiple devices found')
 
-        # todo: uses setattr to add attributes to a class at runtime
+        # uses setattr to add attributes to a class at runtime
         analog_outputs = [ao.split('/')[1] for ao in searcher.list_ao(device)]
         digital_outputs = []
         for p in searcher.list_do_lines(device):
@@ -294,7 +367,6 @@ class NIDAQmxInstrument:
         self._logger.setLevel(loglevel)
 
     def __setattr__(self, attr, value):
-        # todo: trying to make hardware attributes more "pythonic"
         if '_outputs' in self.__dict__.keys():
             if attr in ['_device', '_logger']:
                 pass  # ignore the attributes that are
@@ -302,8 +374,6 @@ class NIDAQmxInstrument:
             elif attr in self._outputs:
                 if 'ao' in attr:
                     analog_out(self._device, attr, value)
-                elif 'port' in attr:
-                    print('port is being set:', attr, value)
                 else:
                     raise AttributeError(f'"{attr}" does not appear '
                                          f'to exist on the device')
@@ -313,6 +383,8 @@ class NIDAQmxInstrument:
     def __getattribute__(self, name):
         if 'port' in name:
             return _Port(self._device, name)
+        elif 'ai' in name:
+            return sample_analog_in(self._device, name)[0]
 
         return super().__getattribute__(name)
 
@@ -458,7 +530,7 @@ class NIDAQmxInstrument:
 
         task = PyDAQmx.Task()
 
-        start_time = time.clock()
+        start_time = time.perf_counter()
         success = False
 
         while not success:
@@ -468,7 +540,7 @@ class NIDAQmxInstrument:
                                   PyDAQmx.DAQmx_Val_ChanForAllLines)
                 success = True
             except PyDAQmx.DAQError as e:
-                if (time.clock() - start_time) > self.command_timeout:
+                if (time.perf_counter() - start_time) > self.command_timeout:
                     return None
 
                 time.sleep(self.sleep_time)
@@ -821,6 +893,8 @@ if __name__ == "__main__":
 
     daq.port0.line1 = False
     print(daq.port0.line1)
+
+    print(daq.ai0)
 
     #print(daq.__dict__)
 
