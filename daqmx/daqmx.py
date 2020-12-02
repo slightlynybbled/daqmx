@@ -461,7 +461,7 @@ class NIDAQmxInstrument:
     sleep_time = 0.001
 
     def __init__(self, device_name: str = None,
-                 serial_number: str = None,
+                 serial_number: (str, int) = None,
                  model_number: str = None,
                  loglevel=logging.INFO):
 
@@ -474,7 +474,10 @@ class NIDAQmxInstrument:
                                  f'valid devices: {", ".join(devices)}')
             device = device_name
         elif serial_number:
-            device = searcher.device_lookup_by_sn(int(serial_number, 16))
+            if isinstance(serial_number, str):
+                device = searcher.device_lookup_by_sn(int(serial_number, 16))
+            else:
+                device = searcher.device_lookup_by_sn(serial_number)
         elif model_number:
             device = searcher.device_lookup_by_model_number(model_number)
 
@@ -526,7 +529,8 @@ class NIDAQmxInstrument:
         return super().__getattribute__(name)
 
     def __repr__(self):
-        return f'<NIDAQmxInstrument "{self._device}">'
+        return f'<NIDAQmxInstrument Device:{self._device} ' \
+               f'PN:{self.model} SN:{self.sn}>'
 
     @property
     def sn(self):
@@ -536,6 +540,10 @@ class NIDAQmxInstrument:
         :return: the device serial number
         """
         return _NIDAQmxSearcher().product_serial_number(self._device)
+
+    @property
+    def model(self):
+        return _NIDAQmxSearcher().model_number(self._device)
 
     @property
     def outputs(self):
