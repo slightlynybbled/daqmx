@@ -29,28 +29,23 @@ more deterministic.
     daq = NIDAQmxInstrument(serial_number=1234)  # hardware specified by serial number
     
 Once you have the `NIDAQmxInstrument` instance, then you can use it to operate
-the instrument.
+the instrument.  See the "examples" directory for complete examples.  Some snippets
+to demonstrate:
 
-Some available methods:
+    daq = NIDAQmxInstrument()  # automatic acquisition of hardware
 
-    # set port0/line2 to "high"
-    daq.digital_out_line(port_name='port0', line_name='line2', value=True)
-    
-    # set port1/line1 to "low"
-    daq.digital_out_line(port_name='port1, line_name='line1', value=False)
-    
-    # read the line and save its value to `value`
-    value = daq.digital_in_line(port_name='port1', line_name='line0')
-    
-    # change the analog out voltage level
-    daq.analog_out(analog_output='ao1', voltage=1.2)
-    
-    # sample the analog input
-    data = daq.sample_analog_in(analog_input='ai0',
-                         sample_count=100, 
-                         rate=1000.0)
-    
-    # retrieves the fundamental frequency that is present
-    data = daq.sample_analog_in(analog_input='ai0',
-                                sample_count=1000,
-                                rate=1000)
+    daq.ao0 = 2.7V  # set the analog out 0 to 2.7V
+    daq.ao1 = 1.3V  # set the analog out 1 to 1.3V
+
+    print(f'daq.ai0.value: {daq.ai0.value:.3f}V')  # print a single sample 
+                                                   # from analog input 0
+
+    values = daq.ai1.capture(
+        sample_count=10, rate=100,
+        max_voltage=10.0, min_voltage=-10.0,
+        mode='differential', timeout=3.0
+    )  # capture 10 samples from ai1 at a rate of 100Hz in differential mode
+    print(values)
+
+
+# todo: need to add digital section
