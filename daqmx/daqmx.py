@@ -10,7 +10,7 @@ import time
 __version__ = '0.3.0'
 
 
-def __format(current_value: (int, str), prefix: str):
+def _format(current_value: (int, str), prefix: str):
     """
     Convenience function to add consistency throughout the object.
 
@@ -24,7 +24,7 @@ def __format(current_value: (int, str), prefix: str):
         return current_value.lower()
 
 
-def __validate_ao(device: str, analog_output: str):
+def _validate_ao(device: str, analog_output: str):
     """
     Ensure that the specified analog output exists on the device.  This
     method will raise a ValueError if the line specified is invalid.
@@ -42,7 +42,7 @@ def __validate_ao(device: str, analog_output: str):
                          f'are: {", ".join(valid_aos)}')
 
 
-def __validate_line(device: str, line_string: str):
+def _validate_line(device: str, line_string: str):
     """
     Ensure that the specified digital line exists on the device.  This
     method will raise a ValueError if the line specified is invalid.
@@ -59,7 +59,7 @@ def __validate_line(device: str, line_string: str):
                          f'are: {", ".join(valid_lines)}')
 
 
-def __validate_ai(device, analog_input: str):
+def _validate_ai(device, analog_input: str):
     """
     Ensure that the specified analog input exists on the device.  This
     method will raise a ValueError if the line specified is invalid.
@@ -87,8 +87,8 @@ def _analog_out(device: str, analog_output: str, voltage: (int, float) = 0.0):
     :param voltage: the desired voltage in volts
     :return: None
     """
-    analog_output = __format(analog_output, 'ao')
-    __validate_ao(device, analog_output)
+    analog_output = _format(analog_output, 'ao')
+    _validate_ao(device, analog_output)
 
     voltage = float(voltage)
 
@@ -123,11 +123,11 @@ def _digital_out_line(device: str, port_name: str, line_name: str, value: bool):
     :param value: True if the line is to be held "high" else False
     :return: None
     """
-    port_name = __format(port_name, 'port')
-    line_name = __format(line_name, 'line')
+    port_name = _format(port_name, 'port')
+    line_name = _format(line_name, 'line')
 
     line = f'{port_name}/{line_name}'
-    __validate_line(device, line)
+    _validate_line(device, line)
 
     physical_channel = f"{device}/{line}".encode('utf-8')
 
@@ -169,11 +169,11 @@ def _digital_in_line(device: str, port_name: str, line_name: str) -> bool:
     command_timeout = 100
     sleep_time = 0.001
 
-    port_name = __format(port_name, 'port')
-    line_name = __format(line_name, 'line')
+    port_name = _format(port_name, 'port')
+    line_name = _format(line_name, 'line')
 
     line = f'{port_name}/{line_name}'
-    __validate_line(device, line)
+    _validate_line(device, line)
 
     physical_channel = f"{device}/{line}".encode('utf-8')
 
@@ -223,7 +223,7 @@ def _sample_analog_in(device: str,
                       max_voltage: (int, float) = 5.0,
                       min_voltage: (int, float) = 0.0,
                       mode: str = 'differential',
-                      timeout: (int, float) = -1,
+                      timeout: (int, float) = None,
                       output_format: str = None):
     """
     Sample an analog input <sample_count> number of times at <rate> Hz.
@@ -238,7 +238,7 @@ def _sample_analog_in(device: str,
         'pseudo-differential', 'single-ended referenced',
         'single-ended non-referenced'
     :param timeout: the time at which the function should return if this
-        time has elapsed; set to -1 to make infinite (default)
+        time has elapsed; set to None to make infinite (default)
     :param output_format: the output format ('list', 'array', etc.)
     :return: the sample or samples as a numpy array
     """
@@ -250,8 +250,11 @@ def _sample_analog_in(device: str,
     if mode.lower() not in mode_lookup.keys():
         raise ValueError(f'mode "{mode}" not valid, expected values: {", ".join(mode_lookup.keys())}')
 
-    analog_input = __format(analog_input, 'ai')
-    __validate_ai(device, analog_input)
+    if timeout is None or timeout < 1:
+        timeout = -1
+
+    analog_input = _format(analog_input, 'ai')
+    _validate_ai(device, analog_input)
 
     physical_channel = f"{device}/{analog_input}".encode('utf-8')
 
@@ -262,7 +265,7 @@ def _sample_analog_in(device: str,
     task.CreateAIVoltageChan(physical_channel,
                              "",
                              mode_lookup[mode],
-                             -min_voltage, max_voltage,
+                             min_voltage, max_voltage,
                              PyDAQmx.DAQmx_Val_Volts,
                              None)
 
@@ -296,7 +299,114 @@ def _sample_analog_in(device: str,
         raise ValueError('output_format must be "list" or left blank')
 
 
-class _Port:
+class AnalogInput:
+    def __init__(self, device: str, analog_input: str = None,
+                 sample_count: int = 1000, rate: (int, float) = 1000.0,
+                 max_voltage: (int, float) = 5.0, min_voltage: (int, float) = 0.0,
+                 mode: str = 'differential', timeout: (int, float) = None):
+        self._device = device
+        self._analog_input = analog_input
+        self._sample_count, self._rate = sample_count, rate
+        self._max_voltage, self._min_voltage = max_voltage, min_voltage
+        self._mode, self._timeout = mode, timeout
+
+    @property
+    def value(self):
+        return self.sample()
+
+    def sample(self, analog_input: str = None):
+        samples = _sample_analog_in(
+            device=self._device,
+            analog_input=analog_input if analog_input is not None else self._analog_input,
+            sample_count=1,
+            rate=self._rate,
+            max_voltage=self._max_voltage,
+            min_voltage=self._min_voltage,
+            mode=self._mode, timeout=self._timeout
+        )
+        return samples[0]
+
+    def capture(self, analog_input: str = None,
+                sample_count: int = None,
+                rate: (int, float) = None,
+                max_voltage: (int, float) = None,
+                min_voltage: (int, float) = None,
+                mode: str = None,
+                timeout: (int, float) = None):
+        samples = _sample_analog_in(
+            device=self._device,
+            analog_input=analog_input if analog_input else self._analog_input,
+            sample_count=sample_count if sample_count else self._sample_count,
+            rate=rate if rate is not None else self._rate,
+            max_voltage=max_voltage if max_voltage else self._max_voltage,
+            min_voltage=min_voltage if min_voltage else self._min_voltage,
+            mode=mode if mode else self._mode,
+            timeout=timeout if timeout is not None else self._timeout
+        )
+        return samples
+
+    def find_dominant_frequency(self, analog_input: str = None,
+                                sample_count: int = None,
+                                rate: (int, float) = None,
+                                max_voltage: (int, float) = None,
+                                min_voltage: (int, float) = None,
+                                mode: str = None,
+                                timeout: (int, float) = None):
+        """
+        Acquires the fundamental frequency observed within the samples
+
+        :param analog_input: the NI analog input designation (i.e. 'ai0')
+        :param sample_count: the number of samples to acquired
+        :param rate: the sample rate in Hz
+            :param max_voltage: the maximum voltage possible
+        :param min_voltage: the minimum voltage range
+        :param mode: the voltage mode of operation; choices: 'differential',
+            'pseudo-differential', 'single-ended referenced',
+            'single-ended non-referenced'
+        :param timeout: the time at which the function should return if this
+            time has elapsed; set to -1 to make infinite (default)
+        :return: the frequency found to be at the highest amplitude; this is
+            often the fundamental frequency in many domains
+        """
+        signal = self.capture(analog_input=analog_input if analog_input else self._analog_input,
+                              sample_count=sample_count if sample_count else self._sample_count,
+                              rate=rate if rate else None,
+                              max_voltage=max_voltage if max_voltage is not None else self._max_voltage,
+                              min_voltage=min_voltage if min_voltage is not None else self._min_voltage,
+                              mode=mode if mode else self._mode,
+                              timeout=timeout if timeout else self._timeout)
+
+        fourier = np.fft.fft(signal)
+        n = signal.size
+        time_step = 1 / rate
+
+        freq = np.fft.fftfreq(n, d=time_step)
+
+        # make a series of tuples that couple the
+        # absolute magnitude with the frequency
+        a_vs_f = []
+        for i, e in enumerate(freq):
+            a_vs_f.append((np.absolute(fourier[i]), freq[i]))
+
+        # sort based on the absolute magnitude
+        a_vs_f_sorted = sorted(a_vs_f, key=lambda x: x[0])
+
+        # if the highest magnitude is at 0.0 frequency,
+        # then remove that datapoint
+        if a_vs_f_sorted[-1][1] == 0.0:
+            a_vs_f_sorted.pop(-1)
+
+        # the highest magnitude is at the last index
+        frequency = a_vs_f_sorted[-1][1]
+        if frequency < 0:
+            frequency *= -1
+
+        frequency = round(float(frequency), 1)
+
+        return frequency
+
+
+class Port:
     def __init__(self, device: str, port: str):
         searcher = _NIDAQmxSearcher()
 
@@ -407,11 +517,16 @@ class NIDAQmxInstrument:
 
     def __getattribute__(self, name):
         if 'port' in name:
-            return _Port(self._device, name)
+            return Port(self._device, name)
+        elif 'ai' == name:
+            return AnalogInput(self._device, None)
         elif 'ai' in name:
-            return _sample_analog_in(self._device, name)[0]
+            return AnalogInput(self._device, name)
 
         return super().__getattribute__(name)
+
+    def __repr__(self):
+        return f'<NIDAQmxInstrument "{self._device}">'
 
     @property
     def sn(self):
@@ -425,12 +540,6 @@ class NIDAQmxInstrument:
     @property
     def outputs(self):
         return self._outputs
-
-    def __check_for_io(self, io_name):
-        if io_name in self._outputs:
-            return True
-        else:
-            return False
 
     def __format(self, current_value: (int, str), prefix: str):
         """
@@ -494,84 +603,6 @@ class NIDAQmxInstrument:
             raise ValueError(f'the analog output "{analog_output}" not found; '
                              f'valid analog outputs for {self._device} '
                              f'are: {", ".join(valid_aos)}')
-
-    def sample_analog_in(self, analog_input: str,
-                         sample_count: int = 1, rate: (int, float) = 1000.0,
-                         output_format: str = None):
-        """
-        Sample an analog input <sample_count> number of times at <rate> Hz.
-
-        :param analog_input: the NI analog input designation (i.e. 'ai0')
-        :param sample_count: the number of desired samples (integer)
-        :param rate: the sample rate in Hz
-        :param output_format: the output format ('list', 'array', etc.)
-        :return: the sample or samples as a numpy array
-        """
-        return _sample_analog_in(analog_input=analog_input,
-                                 sample_count=sample_count,
-                                 rate=rate,
-                                 output_format=output_format)
-
-    def find_dominant_frequency(self, analog_input: str,
-                                sample_count: int = 1000,
-                                rate: (int, float) = 1000,
-                                max_voltage: (int, float) = 5.0,
-                                min_voltage: (int, float) = 0.0,
-                                mode: str = 'differential',
-                                timeout: (int, float) = -1):
-        """
-        Acquires the fundamental frequency observed within the samples
-
-        :param analog_input: the NI analog input designation (i.e. 'ai0')
-        :param sample_count: the number of samples to acquired
-        :param rate: the sample rate in Hz
-            :param max_voltage: the maximum voltage possible
-        :param min_voltage: the minimum voltage range
-        :param mode: the voltage mode of operation; choices: 'differential',
-            'pseudo-differential', 'single-ended referenced',
-            'single-ended non-referenced'
-        :param timeout: the time at which the function should return if this
-            time has elapsed; set to -1 to make infinite (default)
-        :return: the frequency found to be at the highest amplitude; this is
-            often the fundamental frequency in many domains
-        """
-        signal = _sample_analog_in(device=self._device,
-                                   analog_input=analog_input,
-                                   sample_count=sample_count,
-                                   rate=rate,
-                                   max_voltage=max_voltage,
-                                   min_voltage=min_voltage,
-                                   mode=mode,
-                                   timeout=timeout)
-
-        fourier = np.fft.fft(signal)
-        n = signal.size
-        time_step = 1 / rate
-
-        freq = np.fft.fftfreq(n, d=time_step)
-
-        # make a series of tuples that couple the
-        # absolute magnitude with the frequency
-        a_vs_f = []
-        for i, e in enumerate(freq):
-            a_vs_f.append((np.absolute(fourier[i]), freq[i]))
-
-        # sort based on the absolute magnitude
-        a_vs_f_sorted = sorted(a_vs_f, key=lambda x: x[0])
-
-        # if the highest magnitude is at 0.0 frequency,
-        # then remove that datapoint
-        if a_vs_f_sorted[-1][1] == 0.0:
-            a_vs_f_sorted.pop(-1)
-
-        # the highest magnitude is at the last index
-        frequency = a_vs_f_sorted[-1][1]
-        if frequency < 0:
-            frequency *= -1
-
-        frequency = round(float(frequency), 1)
-
-        return frequency
 
 
 class _NIDAQmxSearcher:
@@ -764,16 +795,13 @@ if __name__ == "__main__":
     daq.ao1 = 2.6
     #daq.ao2 = 2.6  # should cause an error
 
-    # port = _Port('Dev3', 'port0')
-    # port.line1 = True
-    # print(port.line1)
+    ai = AnalogInput('Dev3', 'ai0')
+    print(ai.sample())
+    print(ai.capture(sample_count=10))
 
-    daq.port0.line1 = False
-    print(daq.port0.line1)
-
-    print(daq.ai0)
-
-    #print(daq.__dict__)
+    ai = daq.ai0
+    print(ai.value)
+    print(ai.capture(sample_count=10))
 
     # # daq.analog_out(analog_output='ao0', voltage=5.0)
     # # daq.sample_analog_in(analog_input='ai0', sample_count=2)

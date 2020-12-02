@@ -1,5 +1,5 @@
-from daqmx.daqmx import NIDAQmxInstrument, __version__
+from daqmx.daqmx import AnalogInput, NIDAQmxInstrument, __version__
 
 __all__ = [
-    'NIDAQmxInstrument', '__version__',
+    'AnalogInput', 'NIDAQmxInstrument', '__version__',
 ]
