@@ -138,6 +138,66 @@ def digital_out_line(device: str, port_name: str, line_name: str, value: bool):
     task.StopTask()
 
 
+def digital_in_line(device: str, port_name: str, line_name: str) -> bool:
+    """
+    This method will read the dev/port/line and return the value
+
+    :param device: the NI device designation (i.e. 'Dev3')
+    :param port_name: the NI port designations (i.e. 'port0')
+    :param line_name: the NI line designations (i.e. 'line0')
+    :return: True if input is "high" else False
+    """
+    command_timeout = 100
+    sleep_time = 0.001
+
+    port_name = __format(port_name, 'port')
+    line_name = __format(line_name, 'line')
+
+    line = f'{port_name}/{line_name}'
+    __validate_line(device, line)
+
+    physical_channel = f"{device}/{line}".encode('utf-8')
+
+    task = PyDAQmx.Task()
+
+    start_time = time.perf_counter()
+    success = False
+
+    while not success:
+        try:
+            task.CreateDIChan(physical_channel,
+                              ''.encode('utf-8'),
+                              PyDAQmx.DAQmx_Val_ChanForAllLines)
+            success = True
+        except PyDAQmx.DAQError as e:
+            if (time.perf_counter() - start_time) > command_timeout:
+                raise TimeoutError
+
+            time.sleep(sleep_time)
+
+    data = np.array([1], dtype=np.uint8)
+    samples_written = PyDAQmx.int32()
+
+    samples_per_channel = 1
+    timeout = 10.0
+
+    task.StartTask()
+    task.ReadDigitalLines(samples_per_channel,
+                          timeout,
+                          PyDAQmx.DAQmx_Val_GroupByChannel,
+                          data,
+                          1,
+                          None,
+                          None,
+                          None)
+
+    task.StopTask()
+
+    if data == [1]:
+        return True
+    return False
+
+
 class _Port:
     def __init__(self, device: str, port: str):
         searcher = _NIDAQmxSearcher()
@@ -166,8 +226,13 @@ class _Port:
                 digital_out_line(self._device, self._port, key, value)
             else:
                 raise ValueError(f'line "{key}" does not exist on this port')
+        else:
+            self.__dict__[key] = value
 
-        self.__dict__[key] = value
+    def __getattr__(self, item):
+        if 'line' in item:
+            value = digital_in_line(self._device, self._port, item)
+            return value
 
 
 class NIDAQmxInstrument:
@@ -750,12 +815,12 @@ if __name__ == "__main__":
     daq.ao1 = 2.6
     #daq.ao2 = 2.6  # should cause an error
 
-    #port = _Port('Dev3', 'port0')
-    #port.line1 = True
-    #print(port.lines)
+    # port = _Port('Dev3', 'port0')
+    # port.line1 = True
+    # print(port.line1)
 
-    print(daq.port0.lines)
     daq.port0.line1 = False
+    print(daq.port0.line1)
 
     #print(daq.__dict__)
 
