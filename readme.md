@@ -4,9 +4,7 @@ To create a python API for working with National Instruments NIDAQmx.
 
 ## Installation
 
- 1. Download the wheel file
- 1. On the command line, navigate to the repository
- 1. Run `python -m pip install <path-to-wheel-file>`
+    python -m pip install daqmx
 
 ## Usage
 
