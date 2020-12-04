@@ -45,5 +45,7 @@ to demonstrate:
     )  # capture 10 samples from ai1 at a rate of 100Hz in differential mode
     print(values)
 
+    daq.port0.line2 = True
+    print(daq.port0.line3)
 
 # todo: need to add digital section
