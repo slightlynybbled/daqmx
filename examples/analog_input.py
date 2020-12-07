@@ -7,10 +7,10 @@ from daqmx import NIDAQmxInstrument, AnalogInput
 #  - ai2
 #  - ai3
 
-# first, we allocate the hardware using the automatic hardware allocation
-# available to the instrument; this is safe when there is only one NIDAQmx
-# instrument, but you may wish to specify a serial number or model number
-# for a safer experience
+# first, we allocate the hardware using the automatic hardware
+# allocation available to the instrument; this is safe when there
+# is only one NIDAQmx instrument, but you may wish to specify a
+# serial number or model number for a safer experience
 daq = NIDAQmxInstrument()
 
 print(daq)
@@ -33,15 +33,15 @@ values = daq.ai1.capture(
     max_voltage=10.0, min_voltage=-10.0,
     mode='differential', timeout=3.0
 )
-
 print(f'values: {values} V')
 
 # note that the values come back as type `numpy.ndarray`
 print(f'type(values): {type(values)}')
 
-# if you already know your device name, you might be happier going straight
-# to the `AnalogInput` constructor:
+# if you already know your device name, you might be
+# happier going straight to the `AnalogInput` constructor:
 ai0 = AnalogInput(device='Dev3', analog_input='ai0')
 
-# we can do anything that we could have done previously with the daq.aiX
+# we can do anything that we could have
+# done previously with the daq.aiX
 print(f'ai0.value: {ai0.value:.3f}V')

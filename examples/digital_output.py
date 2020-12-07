@@ -6,10 +6,10 @@ from daqmx import NIDAQmxInstrument
 #  - port1/line0 through line3
 #  - port2/line0
 
-# first, we allocate the hardware using the automatic hardware allocation
-# available to the instrument; this is safe when there is only one NIDAQmx
-# instrument, but you may wish to specify a serial number or model number
-# for a safer experience
+# first, we allocate the hardware using the automatic hardware
+# allocation available to the instrument; this is safe when there
+# is only one NIDAQmx instrument, but you may wish to specify a
+# serial number or model number for a safer experience
 daq = NIDAQmxInstrument()
 
 print(daq)
@@ -29,6 +29,7 @@ port.line0 = True
 #port.line5 = True
 
 # !!! IMPORTANT !!!!
-# if you set the value of a port/line, the hardware will be changed to an
-# output; however if you read the value using the similar syntax, the hardware
-# will be changed to an input!
+# if you set the value of a port/line, the hardware will
+# be changed to an output; however if you read the value
+# using the similar syntax, the hardware will be changed
+# to an input!

@@ -1,11 +1,6 @@
-from daqmx import NIDAQmxInstrument, AnalogInput
+from daqmx import NIDAQmxInstrument
 
 # tested with NI USB-6001
-# which has the following analog inputs:
-#  - ai0
-#  - ai1
-#  - ai2
-#  - ai3
 
 # first, we allocate the hardware using the automatic hardware allocation
 # available to the instrument; this is safe when there is only one NIDAQmx

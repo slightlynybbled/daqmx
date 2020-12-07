@@ -14,9 +14,10 @@ daq = NIDAQmxInstrument()
 
 print(daq)
 
-# read the True or False state on the digital outputs by reading the
-# `portX` and `lineX` attributes; you may wish to use the 5V output available
-# to force the pin to a state
+# read the True or False state on the digital outputs
+# by reading the `portX` and `lineX` attributes; you
+# may wish to use the 5V output available to force the
+# pin to a state
 print(daq.port0.line0)
 print(daq.port0.line1)
 
