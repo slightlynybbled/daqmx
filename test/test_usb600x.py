@@ -27,6 +27,8 @@ The testing that will occur will look something like this:
 import pytest
 from daqmx import NIDAQmxInstrument
 
+device_name = 'Dev3'
+device_serial_number = '1b5d996'
 device_model_number = 'USB-6001'
 
 
@@ -46,7 +48,50 @@ def daq():
 
 
 def test_hardware_acquisition(daq):
-    assert True
+    assert daq.model == device_model_number
+
+    # check some of the strings
+    assert device_name in str(daq)
+    assert device_model_number in str(daq)
+
+    # check some of the inputs and outputs
+    assert 'ao0' in daq.outputs
+    assert 'ao1' in daq.outputs
+    assert 'port0' in daq.outputs
+    assert 'port1' in daq.outputs
+    assert 'port2' in daq.outputs
+
+    assert 'ai0' in daq.inputs
+    assert 'ai1' in daq.inputs
+    assert 'ai8' not in daq.inputs
+    assert 'port0' in daq.inputs
+    assert 'port2' in daq.inputs
+    assert 'port3' not in daq.inputs
+
+
+def test_hardware_acq_no_param():
+    daq = NIDAQmxInstrument()
+    assert daq.model == device_model_number
+
+
+def test_hardware_acq_sn():
+    daq = NIDAQmxInstrument(serial_number=device_serial_number)
+    assert daq.model == device_model_number
+
+
+def test_hardware_acq_sn_int():
+    daq = NIDAQmxInstrument(serial_number=int(device_serial_number, 16))
+    assert daq.model == device_model_number
+
+
+def test_hardware_acq_dev_name():
+    daq = NIDAQmxInstrument(device_name=device_name)
+    assert daq.model == device_model_number
+
+
+def test_hardware_acq_dev_name_invalid():
+    with pytest.raises(ValueError):
+        daq = NIDAQmxInstrument(device_name='DevBlah')
 
 
 def test_dio0_true(daq):

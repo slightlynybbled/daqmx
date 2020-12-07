@@ -608,18 +608,22 @@ class NIDAQmxInstrument:
         """
         return self._outputs
 
-    def __format(self, current_value: (int, str), prefix: str):
+    @property
+    def inputs(self):
         """
-        Convenience function to add consistency throughout the object.
+        Returns a list of inputs associated with the device
 
-        :param current_value: a numeric string or integer
-        :param prefix: the string prefix, such as "port" or "line"
-        :return: the formatted string, such as "port0" or "line1"
+        :return: a list of inputs associated with the device
         """
-        if isinstance(current_value, int):
-            return prefix + str(current_value)
-        else:
-            return current_value.lower()
+        searcher = _NIDAQmxSearcher()
+
+        ais = searcher.list_ai(self._device)
+        ais = [s.replace(f'{self._device}/', '') for s in ais]
+
+        dis = searcher.list_do_lines(self._device)
+        dis = [s.split('/')[1] for s in dis]
+
+        return sorted(list(set(ais + dis)))
 
 
 class _NIDAQmxSearcher:
