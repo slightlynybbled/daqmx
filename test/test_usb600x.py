@@ -132,3 +132,48 @@ def test_ai0_diff(daq):
     for value in daq.ai0.capture(sample_count=100):
         if value > -0.99 or value < -1.01:
             assert False
+
+
+def test_analog_input_diff(daq):
+    # set to near 0.0V differential
+    daq.ao0 = 2.5
+    daq.ao1 = 2.5
+
+    # check 100 samples, ensure that they are all close to the expected value
+    for value in daq.ai1.capture(sample_count=100):
+        if value > 0.01 or value < -0.01:
+            assert False
+
+    # set to 1.0V differential
+    daq.ao0 = 3.0
+    daq.ao1 = 2.0
+    for value in daq.ai1.capture(sample_count=100):
+        if value > 1.01 or value < 0.99:
+            assert False
+
+    # set to -1.0V differential
+    daq.ao0 = 2.0
+    daq.ao1 = 3.0
+    for value in daq.ai1.capture(sample_count=100):
+        if value > -0.99 or value < -1.01:
+            assert False
+
+
+def test_analog_input_single(daq):
+    values_to_test = [(2.5, 2.5),
+                      (1.5, 3.5)]
+    tolerance = 0.01
+
+    for v0, v1 in values_to_test:
+        daq.ao0 = v0
+        daq.ao1 = v1
+
+        values = daq.ai1.capture(sample_count=100, mode='single-ended referenced')
+        for value in values:
+            if value > (v0+tolerance) or value < (v0-tolerance):
+                assert False
+
+        values = daq.ai5.capture(sample_count=100, mode='single-ended referenced')
+        for value in values:
+            if value > (v1+tolerance) or value < (v1-tolerance):
+                assert False
