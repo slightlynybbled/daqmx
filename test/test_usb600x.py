@@ -109,6 +109,25 @@ def test_dio1_false(daq):
     assert daq.port0.line1 == True
 
 
+def test_dio_error(daq):
+    """
+    Ensure errors are thrown when bad input given to DO
+
+    :param daq: the NIDAQmxInstrument instance
+    :return:
+    """
+    with pytest.raises(ValueError):
+        daq.port1.line0 = 0
+    with pytest.raises(ValueError):
+        daq.port1.line0 = 1
+    with pytest.raises(ValueError):
+        daq.port1.line0 = 0.0
+    with pytest.raises(ValueError):
+        daq.port1.line0 = 1.0
+
+    daq.port1.line0 = False
+
+
 def test_ai0_diff(daq):
     # set to near 0.0V differential
     daq.ao0 = 2.5
@@ -160,20 +179,45 @@ def test_analog_input_diff(daq):
 
 
 def test_analog_input_single(daq):
-    values_to_test = [(2.5, 2.5),
-                      (1.5, 3.5)]
-    tolerance = 0.01
+    """
+    Applies several voltage combinations to ai1 and ai5 single-ended inputs
+    and ensures that they are as expected.
+
+    :param daq:
+    :return:
+    """
+    num_of_samples = 10
+    values_to_test = [
+        (2.5, 2.5),
+        (1.5, 3.5),
+        (3.5, 1.5),
+        (0.5, 4.5),
+        (4.5, 0.5),
+        (2, 3),     # using an integer to set instead of a float
+      ]
+    tolerance = 0.005
 
     for v0, v1 in values_to_test:
         daq.ao0 = v0
         daq.ao1 = v1
 
-        values = daq.ai1.capture(sample_count=100, mode='single-ended referenced')
+        values = daq.ai1.capture(sample_count=num_of_samples, mode='single-ended referenced')
         for value in values:
             if value > (v0+tolerance) or value < (v0-tolerance):
                 assert False
 
-        values = daq.ai5.capture(sample_count=100, mode='single-ended referenced')
+        values = daq.ai5.capture(sample_count=num_of_samples, mode='single-ended referenced')
         for value in values:
             if value > (v1+tolerance) or value < (v1-tolerance):
                 assert False
+
+
+def test_errors_input_doesnt_exist(daq):
+    with pytest.raises(ValueError):
+        daq.port1.line5 = True
+
+    with pytest.raises(ValueError):
+        daq.port0.line8 = True
+
+    with pytest.raises(ValueError):
+        print(daq.port1.line4)
