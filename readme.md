@@ -1,6 +1,8 @@
 # Purpose
 
-To create a python API for working with National Instruments NIDAQmx.
+To create a python API for working with National Instruments NIDAQmx.  Check
+the [documentation](https://daqmx.readthedocs.io/en/latest/index.html) for
+details.
 
 ## Installation
 
