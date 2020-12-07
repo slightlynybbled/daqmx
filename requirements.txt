@@ -1,2 +1,2 @@
-numpy
-pydaqmx
+numpy >= 1.19.4
+pydaqmx >= 1.4.4

@@ -27,8 +27,8 @@ more deterministic.
     daq = NIDAQmxInstrument(serial_number=1234)  # hardware specified by serial number
     
 Once you have the `NIDAQmxInstrument` instance, then you can use it to operate
-the instrument.  See the "examples" directory for complete examples.  Some snippets
-to demonstrate:
+the instrument.  See the [examples](./examples) directory for complete examples.  
+Some snippets to demonstrate common usages:
 
     daq = NIDAQmxInstrument()  # automatic acquisition of hardware
 
@@ -45,7 +45,5 @@ to demonstrate:
     )  # capture 10 samples from ai1 at a rate of 100Hz in differential mode
     print(values)
 
-    daq.port0.line2 = True
-    print(daq.port0.line3)
-
-# todo: need to add digital section
+    daq.port0.line2 = True  # set the daq.<port>.<line> to True or False to write
+    print(daq.port0.line3)  # read the daq.<port>.<line> to read state of line
