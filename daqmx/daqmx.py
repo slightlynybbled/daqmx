@@ -300,6 +300,20 @@ def _sample_analog_in(device: str,
 
 
 class AnalogInput:
+    """
+    Represents an analog input on the DAQmx device.
+
+    :param device: the device string assigned by DAQmx (i.e. 'Dev3)
+    :param analog_input: the analog input name assigned by DAQmx (i.e. "ao0")
+    :param sample_count: the number of samples to take
+    :param rate: the frequency at which to sample the input
+    :param max_voltage: the maximum expected voltage
+    :param min_voltage: the minimum expected voltage
+    :param mode: the mode; valid values: differential, pseudo-differential, /
+        singled-ended referenced, singled-ended non-referenced
+    :param timeout: the time at which an error will occur if no response /
+        from the instrument is received.
+    """
     def __init__(self, device: str, analog_input: str = None,
                  sample_count: int = 1000, rate: (int, float) = 1000.0,
                  max_voltage: (int, float) = 5.0, min_voltage: (int, float) = 0.0,
@@ -312,9 +326,19 @@ class AnalogInput:
 
     @property
     def value(self):
+        """
+        Return a single sample of the analog input
+
+        :return: a floating-point value representing the voltage
+        """
         return self.sample()
 
     def sample(self, analog_input: str = None):
+        """
+        Return a single sample of the analog input
+
+        :return: a floating-point value representing the voltage
+        """
         samples = _sample_analog_in(
             device=self._device,
             analog_input=analog_input if analog_input is not None else self._analog_input,
@@ -333,6 +357,20 @@ class AnalogInput:
                 min_voltage: (int, float) = None,
                 mode: str = None,
                 timeout: (int, float) = None):
+        """
+        Will capture <sample_count> samples at <rate>Hz in the <mode> mode.
+
+        :param analog_input: the analog input name assigned by DAQmx (i.e. "ao0")
+        :param sample_count: the number of samples to take
+        :param rate: the frequency at which to sample the input
+        :param max_voltage: the maximum expected voltage
+        :param min_voltage: the minimum expected voltage
+        :param mode: the mode; valid values: differential, pseudo-differential, /
+            singled-ended referenced, singled-ended non-referenced
+        :param timeout: the time at which an error will occur if no response /
+            from the instrument is received.
+        :return: a numpy array containing all resulting values
+        """
         samples = _sample_analog_in(
             device=self._device,
             analog_input=analog_input if analog_input else self._analog_input,
@@ -407,6 +445,12 @@ class AnalogInput:
 
 
 class Port:
+    """
+    Represents the port object as defined by DAQmx.
+
+    :param device: the device string as defined by DAQmx (i.e. 'Dev3')
+    :param port: the port name as defined by DAQmx (i.e. 'port2')
+    """
     def __init__(self, device: str, port: str):
         searcher = _NIDAQmxSearcher()
 
@@ -422,6 +466,11 @@ class Port:
 
     @property
     def lines(self):
+        """
+        Lists all of the lines attached to the port
+
+        :return: a list of line names
+        """
         return self._lines
 
     def __setattr__(self, key, value):
@@ -543,10 +592,20 @@ class NIDAQmxInstrument:
 
     @property
     def model(self):
+        """
+        Returns the device model number
+
+        :return: the device model number
+        """
         return _NIDAQmxSearcher().model_number(self._device)
 
     @property
     def outputs(self):
+        """
+        Returns a list of outputs associated with the device.
+
+        :return: a list of outputs associated with the device.
+        """
         return self._outputs
 
     def __format(self, current_value: (int, str), prefix: str):
@@ -561,56 +620,6 @@ class NIDAQmxInstrument:
             return prefix + str(current_value)
         else:
             return current_value.lower()
-
-    def __validate_line(self, line_string: str):
-        """
-        Ensure that the specified digital line exists on the device.  This
-        method will raise a ValueError if the line specified is invalid.
-
-        :param line_string: the string that specifies the specific line (i.e. "port0/line3")
-        :return: None
-        """
-        searcher = _NIDAQmxSearcher()
-        valid_lines = [line.replace(f'{self._device}/', '')
-                     for line in searcher.list_do_lines(self._device)]
-        if line_string not in valid_lines:
-            raise ValueError(f'the analog input "{line_string}" not found; '
-                             f'valid analog outputs for {self._device} '
-                             f'are: {", ".join(valid_lines)}')
-
-    def __validate_ai(self, analog_input: str):
-        """
-        Ensure that the specified analog input exists on the device.  This
-        method will raise a ValueError if the line specified is invalid.
-
-        :param analog_input: the string that specifies
-            the analog input (i.e. "ai1")
-        :return: None
-        """
-        searcher = _NIDAQmxSearcher()
-        valid_ais = [ai.replace(f'{self._device}/', '')
-                     for ai in searcher.list_ai(self._device)]
-        if analog_input not in valid_ais:
-            raise ValueError(f'the analog input "{analog_input}" not found; '
-                             f'valid analog outputs for {self._device} '
-                             f'are: {", ".join(valid_ais)}')
-
-    def __validate_ao(self, analog_output: str):
-        """
-        Ensure that the specified analog output exists on the device.  This
-        method will raise a ValueError if the line specified is invalid.
-
-        :param analog_output: the string that specifies
-            the analog output (i.e. "ao0")
-        :return: None
-        """
-        searcher = _NIDAQmxSearcher()
-        valid_aos = [ao.replace(f'{self._device}/', '')
-                     for ao in searcher.list_ao(self._device)]
-        if analog_output not in valid_aos:
-            raise ValueError(f'the analog output "{analog_output}" not found; '
-                             f'valid analog outputs for {self._device} '
-                             f'are: {", ".join(valid_aos)}')
 
 
 class _NIDAQmxSearcher:
@@ -793,31 +802,3 @@ class _NIDAQmxSearcher:
         do_lines = self._parse_c_str(char_buffer)
 
         return do_lines
-
-
-if __name__ == "__main__":
-    daq = NIDAQmxInstrument(device_name='Dev3')
-    #daq.digital_out_line(port_name='port0', line_name='line1', value=True)
-
-    daq.ao0 = 4.5
-    daq.ao1 = 2.6
-    #daq.ao2 = 2.6  # should cause an error
-
-    ai = AnalogInput('Dev3', 'ai0')
-    print(ai.sample())
-    print(ai.capture(sample_count=10))
-
-    ai = daq.ai0
-    print(ai.value)
-    print(ai.capture(sample_count=10))
-
-    # # daq.analog_out(analog_output='ao0', voltage=5.0)
-    # # daq.sample_analog_in(analog_input='ai0', sample_count=2)
-    #
-    # # daq.read_digital_line(port_name='port0')
-    # daq.digital_out_line(port_name='port0', line_name='line0', value=True)
-    # daq.analog_out('ao0', voltage=2.0)
-    #
-    # print(daq.sample_analog_in('ai0'))
-    # print(daq.sample_analog_in('ai0', sample_count=4))
-    # #print(daq.digital_in_line('port0', 'line0'))
