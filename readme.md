@@ -4,6 +4,15 @@ To create a python API for working with National Instruments NIDAQmx.  Check
 the [documentation](https://daqmx.readthedocs.io/en/latest/index.html) for
 details.
 
+## Project Maturity
+
+The project is somewhat immature, but works well for where items are
+implemented.  Currently, it has been tested on a single model device; however
+there is no reason to suspect that the project wouldn't work on any device
+that supports digital IO, analog inputs, and analog outputs.  There is 
+approximately ~80% test coverage and a pretty good start on the
+[documentation](https://daqmx.readthedocs.io/en/latest/index.html).
+
 ## Installation
 
     python -m pip install daqmx
@@ -49,3 +58,15 @@ Some snippets to demonstrate common usages:
 
     daq.port0.line2 = True  # set the daq.<port>.<line> to True or False to write
     print(daq.port0.line3)  # read the daq.<port>.<line> to read state of line
+
+## Contribution Guidelines
+
+Since I don't have access to unlimited instruments, I have to trust that 
+contributions that say they work do actually work.  As a result, any new 
+instruments that are contributed should have the following:
+
+ - An issue associated with the instrument
+ - A test in the `test` directory which describes the necessary 
+   connections and implements testing
+
+Pull requests are welcome!
