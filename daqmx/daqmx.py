@@ -1,13 +1,22 @@
 from dataclasses import dataclass
 import logging
 
-import PyDAQmx
 import numpy as np
 import ctypes
 import time
 
 
-__version__ = '0.4.2'
+_logger = logging.getLogger(__name__)
+
+# put a try/except here so that documentation may be built on
+# remote servers without autodoc causing an issue
+try:
+    import PyDAQmx
+except NotImplementedError as e:
+    _logger.warning(e)
+    _logger.warning('"PyDAQmx" is raising an error.  You can '
+                    'build documentation, but you likely have '
+                    'issues with your installation.')
 
 
 def _format(current_value: (int, str), prefix: str):
@@ -656,7 +665,7 @@ class _NIDAQmxSearcher:
         PyDAQmx.DAQmxGetSysDevNames(device_char_buffer, self.STRING_BUF_LEN)
 
         devices = self._parse_c_str(device_char_buffer)
-        devices = [device for device in devices if device is not '']
+        devices = [device for device in devices if device !='']
 
         return devices
 
