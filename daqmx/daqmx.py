@@ -639,7 +639,7 @@ class _NIDAQmxSearcher:
     """
     This class is used to search the currently connected devices
     """
-    STRING_BUF_LEN = 500
+    STRING_BUF_LEN = 1000
 
     def __init__(self):
         """
