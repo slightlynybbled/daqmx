@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-from daqmx.daqmx import __version__
+from daqmx import __version__
 
 with open('requirements.txt', 'r') as f:
     REQUIREMENTS = [s.strip() for s in f.readlines()]
