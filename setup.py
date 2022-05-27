@@ -14,7 +14,7 @@ setup(
     author='Jason R. Jones',
     author_email='slightlynybbled@gmail.com',
     url='https://github.com/slightlynybbled/daqmx',
-    python_requires='>=3.6.0',
+    python_requires='>=3.7.0',
     install_requires=REQUIREMENTS,
     packages=find_packages(),
     zip_safe=True,
@@ -24,12 +24,13 @@ setup(
     classifiers=[
         'Development Status :: 4 - Beta',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
         'Natural Language :: English'
     ],
     keywords=['nationalinstruments', 'national', 'instruments',
-             'national instruments', 'daqmx', 'nidaqmx', 'daq',
+              'national instruments', 'daqmx', 'nidaqmx', 'daq',
               'data acquisition', 'usb-6001']
 )

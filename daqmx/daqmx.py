@@ -1,5 +1,5 @@
-from dataclasses import dataclass
 import logging
+from typing import Tuple, List
 
 import numpy as np
 import ctypes
@@ -14,9 +14,11 @@ try:
     import PyDAQmx
 except NotImplementedError as e:
     _logger.warning(e)
-    _logger.warning('"PyDAQmx" is raising an error.  You can '
-                    'build documentation, but you likely have '
-                    'issues with your installation.')
+    _logger.warning(
+        '"PyDAQmx" is raising an error.  You can '
+        "build documentation, but you likely have "
+        "issues with your installation."
+    )
 
 
 def _format(current_value: (int, str), prefix: str):
@@ -43,12 +45,13 @@ def _validate_ao(device: str, analog_output: str):
     :return: None
     """
     searcher = _NIDAQmxSearcher()
-    valid_aos = [ao.replace(f'{device}/', '')
-                 for ao in searcher.list_ao(device)]
+    valid_aos = [ao.replace(f"{device}/", "") for ao in searcher.list_ao(device)]
     if analog_output not in valid_aos:
-        raise ValueError(f'the analog output "{analog_output}" not found; '
-                         f'valid analog outputs for {device} '
-                         f'are: {", ".join(valid_aos)}')
+        raise ValueError(
+            f'the analog output "{analog_output}" not found; '
+            f"valid analog outputs for {device} "
+            f'are: {", ".join(valid_aos)}'
+        )
 
 
 def _validate_line(device: str, line_string: str):
@@ -60,12 +63,15 @@ def _validate_line(device: str, line_string: str):
     :return: None
     """
     searcher = _NIDAQmxSearcher()
-    valid_lines = [line.replace(f'{device}/', '')
-                 for line in searcher.list_do_lines(device)]
+    valid_lines = [
+        line.replace(f"{device}/", "") for line in searcher.list_do_lines(device)
+    ]
     if line_string not in valid_lines:
-        raise ValueError(f'the analog input "{line_string}" not found; '
-                         f'valid analog outputs for {device} '
-                         f'are: {", ".join(valid_lines)}')
+        raise ValueError(
+            f'the analog input "{line_string}" not found; '
+            f"valid analog outputs for {device} "
+            f'are: {", ".join(valid_lines)}'
+        )
 
 
 def _validate_ai(device, analog_input: str):
@@ -79,12 +85,13 @@ def _validate_ai(device, analog_input: str):
     :return: None
     """
     searcher = _NIDAQmxSearcher()
-    valid_ais = [ai.replace(f'{device}/', '')
-                 for ai in searcher.list_ai(device)]
+    valid_ais = [ai.replace(f"{device}/", "") for ai in searcher.list_ai(device)]
     if analog_input not in valid_ais:
-        raise ValueError(f'the analog input "{analog_input}" not found; '
-                         f'valid analog outputs for {device} '
-                         f'are: {", ".join(valid_ais)}')
+        raise ValueError(
+            f'the analog input "{analog_input}" not found; '
+            f"valid analog outputs for {device} "
+            f'are: {", ".join(valid_ais)}'
+        )
 
 
 def _analog_out(device: str, analog_output: str, voltage: (int, float) = 0.0):
@@ -96,29 +103,23 @@ def _analog_out(device: str, analog_output: str, voltage: (int, float) = 0.0):
     :param voltage: the desired voltage in volts
     :return: None
     """
-    analog_output = _format(analog_output, 'ao')
+    analog_output = _format(analog_output, "ao")
     _validate_ao(device, analog_output)
 
     voltage = float(voltage)
 
-    physical_channel = f"{device}/{analog_output}".encode('utf-8')
+    physical_channel = f"{device}/{analog_output}".encode("utf-8")
 
     task = PyDAQmx.Task()
-    task.CreateAOVoltageChan(physical_channel,
-                             ''.encode('utf-8'),
-                             -10.0,
-                             10.0,
-                             PyDAQmx.DAQmx_Val_Volts,
-                             None)
+    task.CreateAOVoltageChan(
+        physical_channel, "".encode("utf-8"), -10.0, 10.0, PyDAQmx.DAQmx_Val_Volts, None
+    )
 
     autostart = 1
     timeout = 10.0
 
     task.StartTask()
-    task.WriteAnalogScalarF64(autostart,
-                              timeout,
-                              voltage,
-                              None)
+    task.WriteAnalogScalarF64(autostart, timeout, voltage, None)
 
     task.StopTask()
 
@@ -132,18 +133,18 @@ def _digital_out_line(device: str, port_name: str, line_name: str, value: bool):
     :param value: True if the line is to be held "high" else False
     :return: None
     """
-    port_name = _format(port_name, 'port')
-    line_name = _format(line_name, 'line')
+    port_name = _format(port_name, "port")
+    line_name = _format(line_name, "line")
 
-    line = f'{port_name}/{line_name}'
+    line = f"{port_name}/{line_name}"
     _validate_line(device, line)
 
-    physical_channel = f"{device}/{line}".encode('utf-8')
+    physical_channel = f"{device}/{line}".encode("utf-8")
 
     task = PyDAQmx.Task()
-    task.CreateDOChan(physical_channel,
-                      ''.encode('utf-8'),
-                      PyDAQmx.DAQmx_Val_ChanForAllLines)
+    task.CreateDOChan(
+        physical_channel, "".encode("utf-8"), PyDAQmx.DAQmx_Val_ChanForAllLines
+    )
 
     if value:
         data = np.array([1], dtype=np.uint8)
@@ -155,13 +156,15 @@ def _digital_out_line(device: str, port_name: str, line_name: str, value: bool):
     timeout = 10.0
 
     task.StartTask()
-    task.WriteDigitalLines(1,
-                           autostart,
-                           timeout,
-                           PyDAQmx.DAQmx_Val_GroupByChannel,
-                           data,
-                           PyDAQmx.byref(samples_written),
-                           None)
+    task.WriteDigitalLines(
+        1,
+        autostart,
+        timeout,
+        PyDAQmx.DAQmx_Val_GroupByChannel,
+        data,
+        PyDAQmx.byref(samples_written),
+        None,
+    )
 
     task.StopTask()
 
@@ -178,13 +181,13 @@ def _digital_in_line(device: str, port_name: str, line_name: str) -> bool:
     command_timeout = 100
     sleep_time = 0.001
 
-    port_name = _format(port_name, 'port')
-    line_name = _format(line_name, 'line')
+    port_name = _format(port_name, "port")
+    line_name = _format(line_name, "line")
 
-    line = f'{port_name}/{line_name}'
+    line = f"{port_name}/{line_name}"
     _validate_line(device, line)
 
-    physical_channel = f"{device}/{line}".encode('utf-8')
+    physical_channel = f"{device}/{line}".encode("utf-8")
 
     task = PyDAQmx.Task()
 
@@ -193,9 +196,9 @@ def _digital_in_line(device: str, port_name: str, line_name: str) -> bool:
 
     while not success:
         try:
-            task.CreateDIChan(physical_channel,
-                              ''.encode('utf-8'),
-                              PyDAQmx.DAQmx_Val_ChanForAllLines)
+            task.CreateDIChan(
+                physical_channel, "".encode("utf-8"), PyDAQmx.DAQmx_Val_ChanForAllLines
+            )
             success = True
         except PyDAQmx.DAQError as e:
             if (time.perf_counter() - start_time) > command_timeout:
@@ -209,14 +212,16 @@ def _digital_in_line(device: str, port_name: str, line_name: str) -> bool:
     timeout = 10.0
 
     task.StartTask()
-    task.ReadDigitalLines(samples_per_channel,
-                          timeout,
-                          PyDAQmx.DAQmx_Val_GroupByChannel,
-                          data,
-                          1,
-                          None,
-                          None,
-                          None)
+    task.ReadDigitalLines(
+        samples_per_channel,
+        timeout,
+        PyDAQmx.DAQmx_Val_GroupByChannel,
+        data,
+        1,
+        None,
+        None,
+        None,
+    )
 
     task.StopTask()
 
@@ -225,15 +230,17 @@ def _digital_in_line(device: str, port_name: str, line_name: str) -> bool:
     return False
 
 
-def _sample_analog_in(device: str,
-                      analog_input: str,
-                      sample_count: int = 1,
-                      rate: (int, float) = 1000.0,
-                      max_voltage: (int, float) = 5.0,
-                      min_voltage: (int, float) = 0.0,
-                      mode: str = 'differential',
-                      timeout: (int, float) = None,
-                      output_format: str = None):
+def _sample_analog_in(
+    device: str,
+    analog_input: str,
+    sample_count: int = 1,
+    rate: (int, float) = 1000.0,
+    max_voltage: (int, float) = 5.0,
+    min_voltage: (int, float) = 0.0,
+    mode: str = "differential",
+    timeout: (int, float) = None,
+    output_format: str = None,
+):
     """
     Sample an analog input <sample_count> number of times at <rate> Hz.
 
@@ -251,58 +258,71 @@ def _sample_analog_in(device: str,
     :param output_format: the output format ('list', 'array', etc.)
     :return: the sample or samples as a numpy array
     """
-    mode_lookup = {'differential': PyDAQmx.DAQmx_Val_Diff,
-                   'pseudo-differential': PyDAQmx.DAQmx_Val_PseudoDiff,
-                   'single-ended referenced': PyDAQmx.DAQmx_Val_RSE,
-                   'single-ended non-referenced': PyDAQmx.DAQmx_Val_NRSE}
+    mode_lookup = {
+        "differential": PyDAQmx.DAQmx_Val_Diff,
+        "pseudo-differential": PyDAQmx.DAQmx_Val_PseudoDiff,
+        "single-ended referenced": PyDAQmx.DAQmx_Val_RSE,
+        "single-ended non-referenced": PyDAQmx.DAQmx_Val_NRSE,
+    }
 
     if mode.lower() not in mode_lookup.keys():
-        raise ValueError(f'mode "{mode}" not valid, expected values: {", ".join(mode_lookup.keys())}')
+        raise ValueError(
+            f'mode "{mode}" not valid, expected values: {", ".join(mode_lookup.keys())}'
+        )
 
     if timeout is None or timeout < 1:
         timeout = -1
 
-    analog_input = _format(analog_input, 'ai')
+    analog_input = _format(analog_input, "ai")
     _validate_ai(device, analog_input)
 
-    physical_channel = f"{device}/{analog_input}".encode('utf-8')
+    physical_channel = f"{device}/{analog_input}".encode("utf-8")
 
     num_of_samples_read = PyDAQmx.int32()
     data = np.zeros(sample_count, dtype=np.float64)
 
     task = PyDAQmx.Task()
-    task.CreateAIVoltageChan(physical_channel,
-                             "",
-                             mode_lookup[mode],
-                             min_voltage, max_voltage,
-                             PyDAQmx.DAQmx_Val_Volts,
-                             None)
+    task.CreateAIVoltageChan(
+        physical_channel,
+        "",
+        mode_lookup[mode],
+        min_voltage,
+        max_voltage,
+        PyDAQmx.DAQmx_Val_Volts,
+        None,
+    )
 
     if sample_count > 1:
-        task.CfgSampClkTiming("",
-                              rate,
-                              PyDAQmx.DAQmx_Val_Rising,
-                              PyDAQmx.DAQmx_Val_FiniteSamps,
-                              sample_count)
+        task.CfgSampClkTiming(
+            "",
+            rate,
+            PyDAQmx.DAQmx_Val_Rising,
+            PyDAQmx.DAQmx_Val_FiniteSamps,
+            sample_count,
+        )
 
     task.StartTask()
-    task.ReadAnalogF64(sample_count,
-                       timeout,
-                       PyDAQmx.DAQmx_Val_GroupByChannel,
-                       data,
-                       sample_count,
-                       PyDAQmx.byref(num_of_samples_read),
-                       None)
+    task.ReadAnalogF64(
+        sample_count,
+        timeout,
+        PyDAQmx.DAQmx_Val_GroupByChannel,
+        data,
+        sample_count,
+        PyDAQmx.byref(num_of_samples_read),
+        None,
+    )
 
     if sample_count != num_of_samples_read.value:
-        raise RuntimeWarning(f'the number of samples returned '
-                             f'({num_of_samples_read}) does not match '
-                             f'the number of samples requested '
-                             f'({sample_count})')
+        raise RuntimeWarning(
+            f"the number of samples returned "
+            f"({num_of_samples_read}) does not match "
+            f"the number of samples requested "
+            f"({sample_count})"
+        )
 
     if not output_format:
         return data
-    elif output_format == 'list':
+    elif output_format == "list":
         return list(data)
     else:
         raise ValueError('output_format must be "list" or left blank')
@@ -323,10 +343,18 @@ class AnalogInput:
     :param timeout: the time at which an error will occur if no response /
         from the instrument is received.
     """
-    def __init__(self, device: str, analog_input: str = None,
-                 sample_count: int = 1000, rate: (int, float) = 1000.0,
-                 max_voltage: (int, float) = 5.0, min_voltage: (int, float) = 0.0,
-                 mode: str = 'differential', timeout: (int, float) = None):
+
+    def __init__(
+        self,
+        device: str,
+        analog_input: str = None,
+        sample_count: int = 1000,
+        rate: (int, float) = 1000.0,
+        max_voltage: (int, float) = 5.0,
+        min_voltage: (int, float) = 0.0,
+        mode: str = "differential",
+        timeout: (int, float) = None,
+    ):
         self._device = device
         self._analog_input = analog_input
         self._sample_count, self._rate = sample_count, rate
@@ -350,22 +378,28 @@ class AnalogInput:
         """
         samples = _sample_analog_in(
             device=self._device,
-            analog_input=analog_input if analog_input is not None else self._analog_input,
+            analog_input=analog_input
+            if analog_input is not None
+            else self._analog_input,
             sample_count=1,
             rate=self._rate,
             max_voltage=self._max_voltage,
             min_voltage=self._min_voltage,
-            mode=self._mode, timeout=self._timeout
+            mode=self._mode,
+            timeout=self._timeout,
         )
         return samples[0]
 
-    def capture(self, analog_input: str = None,
-                sample_count: int = None,
-                rate: (int, float) = None,
-                max_voltage: (int, float) = None,
-                min_voltage: (int, float) = None,
-                mode: str = None,
-                timeout: (int, float) = None):
+    def capture(
+        self,
+        analog_input: str = None,
+        sample_count: int = None,
+        rate: (int, float) = None,
+        max_voltage: (int, float) = None,
+        min_voltage: (int, float) = None,
+        mode: str = None,
+        timeout: (int, float) = None,
+    ):
         """
         Will capture <sample_count> samples at <rate>Hz in the <mode> mode.
 
@@ -388,17 +422,20 @@ class AnalogInput:
             max_voltage=max_voltage if max_voltage else self._max_voltage,
             min_voltage=min_voltage if min_voltage else self._min_voltage,
             mode=mode if mode else self._mode,
-            timeout=timeout if timeout is not None else self._timeout
+            timeout=timeout if timeout is not None else self._timeout,
         )
         return samples
 
-    def find_dominant_frequency(self, analog_input: str = None,
-                                sample_count: int = None,
-                                rate: (int, float) = None,
-                                max_voltage: (int, float) = None,
-                                min_voltage: (int, float) = None,
-                                mode: str = None,
-                                timeout: (int, float) = None):
+    def find_dominant_frequency(
+        self,
+        analog_input: str = None,
+        sample_count: int = None,
+        rate: (int, float) = None,
+        max_voltage: (int, float) = None,
+        min_voltage: (int, float) = None,
+        mode: str = None,
+        timeout: (int, float) = None,
+    ):
         """
         Acquires the fundamental frequency observed within the samples
 
@@ -415,13 +452,15 @@ class AnalogInput:
         :return: the frequency found to be at the highest amplitude; this is
             often the fundamental frequency in many domains
         """
-        signal = self.capture(analog_input=analog_input if analog_input else self._analog_input,
-                              sample_count=sample_count if sample_count else self._sample_count,
-                              rate=rate if rate else None,
-                              max_voltage=max_voltage if max_voltage is not None else self._max_voltage,
-                              min_voltage=min_voltage if min_voltage is not None else self._min_voltage,
-                              mode=mode if mode else self._mode,
-                              timeout=timeout if timeout else self._timeout)
+        signal = self.capture(
+            analog_input=analog_input if analog_input else self._analog_input,
+            sample_count=sample_count if sample_count else self._sample_count,
+            rate=rate if rate else None,
+            max_voltage=max_voltage if max_voltage is not None else self._max_voltage,
+            min_voltage=min_voltage if min_voltage is not None else self._min_voltage,
+            mode=mode if mode else self._mode,
+            timeout=timeout if timeout else self._timeout,
+        )
 
         fourier = np.fft.fft(signal)
         n = signal.size
@@ -460,6 +499,7 @@ class Port:
     :param device: the device string as defined by DAQmx (i.e. 'Dev3')
     :param port: the port name as defined by DAQmx (i.e. 'port2')
     """
+
     def __init__(self, device: str, port: str):
         searcher = _NIDAQmxSearcher()
 
@@ -468,7 +508,7 @@ class Port:
 
         lines = []
         for line in searcher.list_do_lines(device):
-            _, p, l = line.split('/')
+            _, p, l = line.split("/")
             if p == port:
                 lines.append(l)
         self._lines = lines
@@ -483,11 +523,13 @@ class Port:
         return self._lines
 
     def __setattr__(self, key, value):
-        if '_lines' in self.__dict__.keys():
-            if key in self.__dict__['_lines']:
+        if "_lines" in self.__dict__.keys():
+            if key in self.__dict__["_lines"]:
                 if not isinstance(value, bool):
-                    raise ValueError(f'{self._device}/{self._port}/{key} may only '
-                                     f'be "True" or "False"')
+                    raise ValueError(
+                        f"{self._device}/{self._port}/{key} may only "
+                        f'be "True" or "False"'
+                    )
 
                 _digital_out_line(self._device, self._port, key, value)
             else:
@@ -496,7 +538,7 @@ class Port:
             self.__dict__[key] = value
 
     def __getattr__(self, item):
-        if 'line' in item:
+        if "line" in item:
             value = _digital_in_line(self._device, self._port, item)
             return value
 
@@ -515,21 +557,27 @@ class NIDAQmxInstrument:
         usually what is printed on the label)
     :param model_number: the model number as printed on the label
     """
+
     command_timeout = 100
     sleep_time = 0.001
 
-    def __init__(self, device_name: str = None,
-                 serial_number: (str, int) = None,
-                 model_number: str = None,
-                 loglevel=logging.INFO):
+    def __init__(
+        self,
+        device_name: str = None,
+        serial_number: (str, int) = None,
+        model_number: str = None,
+        loglevel=logging.INFO,
+    ):
 
         searcher = _NIDAQmxSearcher()
 
         if device_name:
             devices = searcher.list_devices()
             if device_name not in devices:
-                raise ValueError(f'device name "{device_name}" not found; '
-                                 f'valid devices: {", ".join(devices)}')
+                raise ValueError(
+                    f'device name "{device_name}" not found; '
+                    f'valid devices: {", ".join(devices)}'
+                )
             device = device_name
         elif serial_number:
             if isinstance(serial_number, str):
@@ -542,17 +590,17 @@ class NIDAQmxInstrument:
         else:  # when no specific device is specified, grab the first one
             devices = searcher.list_devices()
             if len(devices) == 0:
-                raise ValueError('no devices found')
+                raise ValueError("no devices found")
             elif len(devices) == 1:
                 device = devices[0]
             else:
-                raise ValueError('multiple devices found')
+                raise ValueError("multiple devices found")
 
         # uses setattr to add attributes to a class at runtime
-        analog_outputs = [ao.split('/')[1] for ao in searcher.list_ao(device)]
+        analog_outputs = [ao.split("/")[1] for ao in searcher.list_ao(device)]
         digital_outputs = []
         for p in searcher.list_do_lines(device):
-            _, p, _ = p.split('/')
+            _, p, _ = p.split("/")
             digital_outputs.append(p)
         digital_outputs = list(set(digital_outputs))
 
@@ -563,32 +611,35 @@ class NIDAQmxInstrument:
         self._logger.setLevel(loglevel)
 
     def __setattr__(self, attr, value):
-        if '_outputs' in self.__dict__.keys():
-            if attr in ['_device', '_logger']:
+        if "_outputs" in self.__dict__.keys():
+            if attr in ["_device", "_logger"]:
                 pass  # ignore the attributes that are
-                      # supposed to be part of the class
+                # supposed to be part of the class
             elif attr in self._outputs:
-                if 'ao' in attr:
+                if "ao" in attr:
                     _analog_out(self._device, attr, value)
                 else:
-                    raise AttributeError(f'"{attr}" does not appear '
-                                         f'to exist on the device')
+                    raise AttributeError(
+                        f'"{attr}" does not appear ' f"to exist on the device"
+                    )
 
         self.__dict__[attr] = value
 
     def __getattribute__(self, name):
-        if 'port' in name:
+        if "port" in name:
             return Port(self._device, name)
-        elif 'ai' == name:
+        elif "ai" == name:
             return AnalogInput(self._device, None)
-        elif 'ai' in name:
+        elif "ai" in name:
             return AnalogInput(self._device, name)
 
         return super().__getattribute__(name)
 
     def __repr__(self):
-        return f'<NIDAQmxInstrument Device:{self._device} ' \
-               f'PN:{self.model} SN:{self.sn}>'
+        return (
+            f"<NIDAQmxInstrument Device:{self._device} "
+            f"PN:{self.model} SN:{self.sn}>"
+        )
 
     @property
     def sn(self):
@@ -627,10 +678,10 @@ class NIDAQmxInstrument:
         searcher = _NIDAQmxSearcher()
 
         ais = searcher.list_ai(self._device)
-        ais = [s.replace(f'{self._device}/', '') for s in ais]
+        ais = [s.replace(f"{self._device}/", "") for s in ais]
 
         dis = searcher.list_do_lines(self._device)
-        dis = [s.split('/')[1] for s in dis]
+        dis = [s.split("/")[1] for s in dis]
 
         return sorted(list(set(ais + dis)))
 
@@ -639,6 +690,7 @@ class _NIDAQmxSearcher:
     """
     This class is used to search the currently connected devices
     """
+
     STRING_BUF_LEN = 1000
 
     def __init__(self):
@@ -647,17 +699,18 @@ class _NIDAQmxSearcher:
         """
         pass
 
-    def _parse_c_str(self, c_string_buffer):
+    def _parse_c_str(self, c_string_buffer) -> Tuple[str]:
         """
         Helper function to assist in parsing c strings
         :param c_string_buffer: a string with comma-separated values
         :return: a tuple of strings that were once separated by commas in a single string
         """
-        items = c_string_buffer.value.decode('utf-8').split(',')
+        items = c_string_buffer.value.decode("utf-8").split(",")
         items = [item.strip() for item in items]
+
         return tuple(items)
 
-    def list_devices(self):
+    def list_devices(self) -> List[str]:
         """
         :return: a list of the attached devices, by name
         """
@@ -665,11 +718,11 @@ class _NIDAQmxSearcher:
         PyDAQmx.DAQmxGetSysDevNames(device_char_buffer, self.STRING_BUF_LEN)
 
         devices = self._parse_c_str(device_char_buffer)
-        devices = [device for device in devices if device !='']
+        devices = [device for device in devices if device != ""]
 
         return devices
 
-    def list_serial_numbers(self):
+    def list_serial_numbers(self) -> List[int]:
         """
         Return a list of serial numbers that are attached to the machine.
 
@@ -677,7 +730,7 @@ class _NIDAQmxSearcher:
         """
         return [self.product_serial_number(device) for device in self.list_devices()]
 
-    def list_models(self):
+    def list_models(self) -> List[str]:
         """
         Return a list of models that are attached to the machine
 
@@ -686,7 +739,7 @@ class _NIDAQmxSearcher:
 
         return list(set([self.model_number(device) for device in self.list_devices()]))
 
-    def model_number(self, device_name):
+    def model_number(self, device_name: str) -> str:
         """
         Return a product type (model number) given the device name
 
@@ -694,7 +747,7 @@ class _NIDAQmxSearcher:
             (i.e. "Dev3")
         :return: the product type or model number
         """
-        dev = device_name.encode('utf-8')
+        dev = device_name.encode("utf-8")
         dev_char_buffer = ctypes.create_string_buffer(self.STRING_BUF_LEN)
 
         # save the device name into the character buffer
@@ -702,20 +755,22 @@ class _NIDAQmxSearcher:
             dev_char_buffer[i] = c
 
         char_buffer = ctypes.create_string_buffer(self.STRING_BUF_LEN)
-        PyDAQmx.DAQmxGetDevProductType(ctypes.addressof(dev_char_buffer), char_buffer, self.STRING_BUF_LEN)
+        PyDAQmx.DAQmxGetDevProductType(
+            ctypes.addressof(dev_char_buffer), char_buffer, self.STRING_BUF_LEN
+        )
 
         product_type = self._parse_c_str(char_buffer)[0]
 
         return product_type
 
-    def product_serial_number(self, device_name):
+    def product_serial_number(self, device_name: str) -> int:
         """
         Return the product serial number of the specified device.
 
         :param device_name: the enumerated device name of an attached device (i.e. "Dev3")
         :return: the product serial number
         """
-        dev = device_name.encode('utf-8')
+        dev = device_name.encode("utf-8")
         dev_char_buffer = ctypes.create_string_buffer(self.STRING_BUF_LEN)
 
         # save the device name into the character buffer
@@ -729,7 +784,7 @@ class _NIDAQmxSearcher:
 
         return product_sn
 
-    def device_lookup_by_sn(self, serial_number: (str, int)):
+    def device_lookup_by_sn(self, serial_number: (str, int)) -> str:
         """
         Lookup a device name that is currently connected to the PC by serial
         number.  Note that many National Instruments devices print serial
@@ -744,7 +799,7 @@ class _NIDAQmxSearcher:
             if self.product_serial_number(device) == serial_number:
                 return device
 
-    def device_lookup_by_model_number(self, model_number: str):
+    def device_lookup_by_model_number(self, model_number: str) -> str:
         """
         Lookup a device name that is currently connected to the PC by model
         number.  Note that, if there are multiple devices of the same model
@@ -761,10 +816,12 @@ class _NIDAQmxSearcher:
 
     def list_ai(self, device_name):
         """
+        Return a list of the analog input lines
+
         :param device_name: The enumerated device name of an attached device
         :return: All analog inputs present on the device
         """
-        dev = device_name.encode('utf-8')
+        dev = device_name.encode("utf-8")
         dev_char_buffer = ctypes.create_string_buffer(self.STRING_BUF_LEN)
 
         # save the device name into the character buffer
@@ -772,7 +829,9 @@ class _NIDAQmxSearcher:
             dev_char_buffer[i] = c
 
         char_buffer = ctypes.create_string_buffer(self.STRING_BUF_LEN)
-        PyDAQmx.DAQmxGetDevAIPhysicalChans(ctypes.addressof(dev_char_buffer), char_buffer, self.STRING_BUF_LEN)
+        PyDAQmx.DAQmxGetDevAIPhysicalChans(
+            ctypes.addressof(dev_char_buffer), char_buffer, self.STRING_BUF_LEN
+        )
 
         ais = self._parse_c_str(char_buffer)
 
@@ -780,10 +839,12 @@ class _NIDAQmxSearcher:
 
     def list_ao(self, device_name):
         """
+        Return a list of the analog out lines
+
         :param device_name: The enumerated device name of an attached device
         :return: All analog outputs present on the device
         """
-        dev = device_name.encode('utf-8')
+        dev = device_name.encode("utf-8")
         dev_char_buffer = ctypes.create_string_buffer(self.STRING_BUF_LEN)
 
         # save the device name into the character buffer
@@ -791,18 +852,22 @@ class _NIDAQmxSearcher:
             dev_char_buffer[i] = c
 
         char_buffer = ctypes.create_string_buffer(self.STRING_BUF_LEN)
-        PyDAQmx.DAQmxGetDevAOPhysicalChans(ctypes.addressof(dev_char_buffer), char_buffer, self.STRING_BUF_LEN)
+        PyDAQmx.DAQmxGetDevAOPhysicalChans(
+            ctypes.addressof(dev_char_buffer), char_buffer, self.STRING_BUF_LEN
+        )
 
         aos = self._parse_c_str(char_buffer)
 
         return aos
 
-    def list_do_lines(self, device_name):
+    def list_do_lines(self, device_name: str):
         """
+        Return a list of the digital out lines
+
         :param device_name: The enumerated device name of an attached device
         :return: All digital output lines on the device
         """
-        dev = device_name.encode('utf-8')
+        dev = device_name.encode("utf-8")
         dev_char_buffer = ctypes.create_string_buffer(self.STRING_BUF_LEN)
 
         # save the device name into the character buffer
@@ -810,7 +875,9 @@ class _NIDAQmxSearcher:
             dev_char_buffer[i] = c
 
         char_buffer = ctypes.create_string_buffer(self.STRING_BUF_LEN)
-        PyDAQmx.DAQmxGetDevDOLines(ctypes.addressof(dev_char_buffer), char_buffer, self.STRING_BUF_LEN)
+        PyDAQmx.DAQmxGetDevDOLines(
+            ctypes.addressof(dev_char_buffer), char_buffer, self.STRING_BUF_LEN
+        )
 
         do_lines = self._parse_c_str(char_buffer)
 
