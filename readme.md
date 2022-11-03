@@ -21,7 +21,7 @@ approximately ~80% test coverage and a pretty good start on the
 
 You must first import the package:
 
-    from ni import NIDAQmxInstrument
+    from daqmx import NIDAQmxInstrument
     
 You can then allocate the hardware without any further specifiers.  Note that, 
 if there is more than one DAQmx instrument available on your PC, the hardware
@@ -43,8 +43,8 @@ Some snippets to demonstrate common usages:
 
     daq = NIDAQmxInstrument()  # automatic acquisition of hardware
 
-    daq.ao0 = 2.7V  # set the analog out 0 to 2.7V
-    daq.ao1 = 1.3V  # set the analog out 1 to 1.3V
+    daq.ao0 = 2.7  # set the analog out 0 to 2.7V
+    daq.ao1 = 1.3  # set the analog out 1 to 1.3V
 
     print(f'daq.ai0.value: {daq.ai0.value:.3f}V')  # print a single sample 
                                                    # from analog input 0
